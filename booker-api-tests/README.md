@@ -27,8 +27,7 @@ src/test/java/io/testautomation/booker/
 │       └── BookingFeature               feature metadata
 ├── framework/
 │   ├── lifecycle/                       dependency resolution and cleanup
-│   ├── metadata/                        domain, feature, and reporting annotations
-│   └── reporting/                       quality-gate Allure hierarchy
+│   └── metadata/                        domain, feature, and reporting annotations
 └── system/                              architecture, metadata, and source-quality tests
 ```
 
@@ -36,9 +35,9 @@ The test tree has three explicit entry points. `features/*/scenarios` contains e
 
 ## System quality gates
 
-System tests remain visible in Allure under `Booker REST API / Framework Quality Gates` and are excluded from Qase reporting.
+System tests run automatically in the pull-request quality gate. They are excluded from Qase and from manual business Allure reports.
 
-| Allure group | Purpose |
+| Gate | Purpose |
 |---|---|
 | Architecture | Protects package ownership, dependency direction, test placement, and cycle-free boundaries |
 | Test Documentation Integrity | Keeps automated scenario metadata, execution plans, display names, and Qase IDs synchronized |

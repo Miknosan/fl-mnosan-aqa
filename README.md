@@ -31,14 +31,14 @@ Domain modules do not depend on one another. `qa-core` contains no domain behavi
 The Booker suite implements the 10 test cases stored in Qase suite `DA / Booker`. Tests are linked to their Qase cases with `@QaseId`, while JUnit display names remain human-readable. The mandatory-field case is parameterized across all six required fields, so Maven reports 15 JUnit executions for 10 test methods.
 
 ```bash
-# All Booker tests
-./mvnw -pl booker-api-tests -am test -Dtest.environment=dev
+# All Booker business tests
+./mvnw -pl booker-api-tests -am test -Dtest.environment=dev -Dgroups=business
 
 # Booker smoke plan
-./mvnw -pl booker-api-tests -am test -Dtest.environment=dev -Dgroups=smoke
+./mvnw -pl booker-api-tests -am test -Dtest.environment=dev -Dgroups="business & smoke"
 
 # Booker regression plan
-./mvnw -pl booker-api-tests -am test -Dtest.environment=dev -Dgroups=regression
+./mvnw -pl booker-api-tests -am test -Dtest.environment=dev -Dgroups="business & regression"
 ```
 
 The Booker target URL is selected from `config/environments/<environment>.properties`. Technical defaults are stored in `booker-api-tests/src/main/resources/booker.properties`. Values can be overridden by environment variables or Java system properties:
@@ -57,14 +57,14 @@ Tests execute sequentially by default because Restful Booker is a public service
 The Hygraph suite implements the six cases in Qase suite `DA / Hygraph` against the public Video Streaming schema. It covers movie pagination, variables, single-entity retrieval, fragments and nested fields, not-found behavior, syntax errors, and schema validation.
 
 ```bash
-# All Hygraph tests
-./mvnw -pl hygraph-graphql-tests -am clean test -Dtest.environment=dev
+# All Hygraph business tests
+./mvnw -pl hygraph-graphql-tests -am clean test -Dtest.environment=dev -Dgroups=business
 
 # Hygraph smoke plan
-./mvnw -pl hygraph-graphql-tests -am clean test -Dtest.environment=dev -Dgroups=smoke
+./mvnw -pl hygraph-graphql-tests -am clean test -Dtest.environment=dev -Dgroups="business & smoke"
 
 # Hygraph regression plan
-./mvnw -pl hygraph-graphql-tests -am clean test -Dtest.environment=dev -Dgroups=regression
+./mvnw -pl hygraph-graphql-tests -am clean test -Dtest.environment=dev -Dgroups="business & regression"
 ```
 
 The Hygraph target URL is selected from `config/environments/<environment>.properties`. Technical defaults are stored in `hygraph-graphql-tests/src/main/resources/hygraph.properties` and support environment-variable or Java-system-property overrides:
@@ -76,7 +76,7 @@ hygraph.timeout-ms -> HYGRAPH_TIMEOUT_MS
 
 The `moviecatalog` production package represents the `movie-catalog` feature. Its Qase scenarios are located under `features/moviecatalog/scenarios`. Queries and fragments are stored under `src/main/resources/graphql/movie-catalog`. Run-scoped test data resolves suitable public entities once and reuses them without global static state. The suite executes sequentially to avoid unnecessary load on the public service.
 
-Reusable test infrastructure is isolated under `framework`, while platform-level tests for GraphQL transport, response contracts, document loading, schema validation, and architecture gates are located under `system`. Runtime schema introspection validates every executable GraphQL document against the published Hygraph schema. See `hygraph-graphql-tests/README.md` for package ownership and extension rules.
+Reusable test infrastructure is isolated under `framework`. Local GraphQL transport, response, document, configuration, metadata, source-quality, and architecture checks use the `system` classification. Runtime schema introspection uses the separate `external-contract` classification because it depends on the published Hygraph schema. See `hygraph-graphql-tests/README.md` for package ownership and execution rules.
 
 ## DemoQA UI tests
 
@@ -89,14 +89,14 @@ The DemoQA suite implements Qase cases `DA-44` through `DA-52` with Playwright f
   -Dexec.mainClass=com.microsoft.playwright.CLI \
   -Dexec.args="install chromium"
 
-# All DemoQA tests
-./mvnw -pl demoqa-ui-tests -am clean test -Dtest.environment=dev
+# All DemoQA business tests
+./mvnw -pl demoqa-ui-tests -am clean test -Dtest.environment=dev -Dgroups=business
 
 # DemoQA smoke plan
-./mvnw -pl demoqa-ui-tests -am clean test -Dtest.environment=dev -Dgroups=smoke
+./mvnw -pl demoqa-ui-tests -am clean test -Dtest.environment=dev -Dgroups="business & smoke"
 
 # DemoQA regression plan
-./mvnw -pl demoqa-ui-tests -am clean test -Dtest.environment=dev -Dgroups=regression
+./mvnw -pl demoqa-ui-tests -am clean test -Dtest.environment=dev -Dgroups="business & regression"
 ```
 
 The DemoQA target URL is selected from `config/environments/<environment>.properties`. Technical browser defaults are stored in `demoqa-ui-tests/src/main/resources/demoqa.properties`. Every property can be overridden by its uppercase underscore environment variable or by a Java system property. For example, use `DEMOQA_HEADLESS=false`, `DEMOQA_BROWSER=firefox`, or `-Ddemoqa.base-url=https://demoqa.com`.
@@ -105,7 +105,7 @@ Tests use a fresh browser context and generated data per execution. Third-party 
 
 ## Orchestrated execution
 
-The orchestrator validates domain, plan, feature, environment, and parallelism inputs, converts multiple plans to a JUnit logical-OR expression, and invokes only the selected Maven modules.
+The orchestrator validates domain, plan, feature, environment, and parallelism inputs, converts multiple plans to a business-only JUnit tag expression, and invokes only the selected Maven modules. System and external-contract tests are never part of orchestrated manual runs.
 
 ```bash
 # Build and install the orchestrator and its shared dependency once
@@ -162,9 +162,11 @@ The assignment systems expose one public endpoint per domain, so the committed `
 - Allure: `<module>/target/allure-results`
 - DemoQA failure screenshots: `demoqa-ui-tests/target/test-artifacts/<environment>/screenshots`
 
+Manual Allure and Qase runs contain only `business` scenarios. Pull-request system gates publish neither Allure nor Qase results.
+
 ## CI/CD
 
-GitHub Actions provides an exclusively manual quality pipeline with validated environment, domain, and test-plan selection, parallel domain jobs, environment-scoped configuration, optional consolidated Qase publication, consolidated Allure generation, and optional GitHub Pages delivery. Repository settings, secrets, inputs, and operating rules are documented in [`docs/ci-cd.md`](docs/ci-cd.md).
+GitHub Actions provides two isolated pipelines. Pull requests automatically run shared unit tests and local `system` quality gates without external business traffic, Qase, or Allure publication. The manual quality pipeline runs only selected `business` scenarios with environment-aware domain execution, optional consolidated Qase publication, consolidated Allure generation, and optional GitHub Pages delivery. Repository settings, secrets, inputs, and operating rules are documented in [`docs/ci-cd.md`](docs/ci-cd.md).
 
 ### Qase TestOps
 
@@ -173,7 +175,9 @@ Qase reporting is disabled for normal local runs. Booker, Hygraph, and DemoQA te
 ```bash
 QASE_MODE="testops" \
 QASE_TESTOPS_API_TOKEN="<your-token>" \
-./mvnw -pl booker-api-tests -am clean test -Dtest.environment=dev
+./mvnw -pl booker-api-tests -am clean test \
+  -Dtest.environment=dev \
+  -Dgroups=business
 ```
 
 Replace `booker-api-tests` with `hygraph-graphql-tests` or `demoqa-ui-tests` to publish another domain suite. Set `QASE_TESTOPS_RUN_TITLE` to a domain-specific title for each run.
@@ -182,8 +186,8 @@ The non-secret defaults, including project code `DA`, are stored in the root `qa
 
 CI creates one Qase run per quality-gate execution and shares its ID across all selected domain jobs. The reporters append results without completing the run; a dedicated finalizer closes it after the full matrix, including failure paths, enables its public report, and publishes the public URL in the GitHub Actions summary.
 
-## Full build
+## Complete business verification
 
 ```bash
-./mvnw clean verify -Dtest.environment=dev
+./mvnw clean verify -Dtest.environment=dev -Dgroups=business
 ```

@@ -5,13 +5,17 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import io.qase.commons.annotation.QaseId;
 import io.qase.commons.annotation.QaseIgnore;
+import io.testautomation.core.classification.ExternalContract;
 import io.testautomation.core.classification.Regression;
 import io.testautomation.core.classification.Smoke;
+import io.testautomation.core.classification.SystemTest;
+import io.testautomation.core.classification.TestTags;
 import io.testautomation.hygraph.framework.metadata.GraphQlPlatformFeature;
 import io.testautomation.hygraph.framework.metadata.Hygraph;
 import io.testautomation.hygraph.framework.metadata.HygraphFeature;
 import io.testautomation.hygraph.framework.metadata.ReportGroup;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.lang.reflect.Method;
 import java.util.HashSet;
@@ -20,14 +24,10 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Hygraph
-@GraphQlPlatformFeature
-@ReportGroup("Test metadata")
+@SystemTest
 class HygraphTestMetadataTest {
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldEnforceRequiredMetadataAndUniqueQaseIdsForMovieCatalogScenarios() {
         List<Class<?>> testClasses = new ClassFileImporter()
                 .withImportOption(new ImportOption.OnlyIncludeTests())
@@ -38,6 +38,8 @@ class HygraphTestMetadataTest {
                 .toList();
 
         assertThat(testClasses).hasSize(6);
+        assertThat(java.util.Arrays.stream(Hygraph.class.getAnnotationsByType(Tag.class)).map(Tag::value))
+                .contains(TestTags.BUSINESS);
         Set<Long> qaseIds = new HashSet<>();
         for (Class<?> testClass : testClasses) {
             assertThat(testClass.isAnnotationPresent(Hygraph.class)).isTrue();
@@ -57,8 +59,6 @@ class HygraphTestMetadataTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldKeepSystemTestsOutOfQaseReporting() {
         List<Class<?>> qualityTestClasses = new ClassFileImporter()
                 .withImportOption(new ImportOption.OnlyIncludeTests())
@@ -70,9 +70,13 @@ class HygraphTestMetadataTest {
 
         assertThat(qualityTestClasses).isNotEmpty();
         for (Class<?> testClass : qualityTestClasses) {
+            boolean systemTest = testClass.isAnnotationPresent(SystemTest.class);
+            boolean externalContract = testClass.isAnnotationPresent(ExternalContract.class);
+            assertThat(systemTest ^ externalContract).isTrue();
             for (Method method : testClass.getDeclaredMethods()) {
                 if (method.isAnnotationPresent(Test.class)) {
                     assertThat(method.isAnnotationPresent(QaseIgnore.class)).isTrue();
+                    assertThat(hasTestPlan(method)).isFalse();
                 }
             }
         }

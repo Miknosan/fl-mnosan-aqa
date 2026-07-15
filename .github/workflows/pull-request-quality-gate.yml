@@ -1,0 +1,70 @@
+name: Pull request quality gates
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: pull-request-quality-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  core-quality:
+    name: Core and orchestrator unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      QASE_MODE: 'off'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up Java
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Run shared unit tests
+        run: >-
+          ./mvnw --batch-mode --no-transfer-progress
+          -pl qa-core,qa-orchestrator -am clean test
+
+  domain-system-quality:
+    name: ${{ matrix.domain }} system quality gates
+    needs: core-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - domain: Booker
+            module: booker-api-tests
+          - domain: Hygraph
+            module: hygraph-graphql-tests
+          - domain: DemoQA
+            module: demoqa-ui-tests
+    env:
+      QASE_MODE: 'off'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Set up Java
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Run local system quality gates
+        run: >-
+          ./mvnw --batch-mode --no-transfer-progress
+          -pl "${{ matrix.module }}" -am clean test
+          -Dgroups=system

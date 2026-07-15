@@ -26,7 +26,19 @@ class ExecutionSelectionTest {
         ExecutionSelection selection = ExecutionSelection.fromSystemProperties();
 
         assertEquals("stage", selection.environment().value());
-        assertEquals("regression | smoke", selection.tagExpression());
+        assertEquals("business & (regression | smoke)", selection.tagExpression());
+    }
+
+    @Test
+    void shouldRestrictFeatureSelectionToBusinessScenarios() {
+        System.setProperty("domains", "demoqa");
+        System.setProperty("plans", "regression");
+        System.setProperty("feature", "web-tables");
+        System.setProperty("environment", "dev");
+
+        ExecutionSelection selection = ExecutionSelection.fromSystemProperties();
+
+        assertEquals("business & (regression) & web-tables", selection.tagExpression());
     }
 
     @Test

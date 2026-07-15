@@ -35,8 +35,7 @@ src/test/java/io/testautomation/demoqa/
 │       └── WebTableAssertions
 ├── framework/
 │   ├── lifecycle/                    cross-feature DemoQA execution lifecycle
-│   ├── metadata/                     domain and reporting annotations
-│   └── reporting/                    quality-gate Allure hierarchy
+│   └── metadata/                     domain and reporting annotations
 └── system/                            architecture, metadata, and source-quality tests
 ```
 
@@ -46,9 +45,9 @@ Page objects expose business operations and never assertions. Components own sel
 
 ## System quality gates
 
-System tests remain visible in Allure under `DemoQA UI / Framework Quality Gates` and are excluded from Qase reporting. They use a reporting-only extension and never create a browser or Playwright context.
+System tests run automatically in the pull-request quality gate and never create a browser or Playwright context. They are excluded from Qase and from manual business Allure reports.
 
-| Allure group | Purpose |
+| Gate | Purpose |
 |---|---|
 | Architecture | Protects page, component, platform, feature, and executable-test boundaries |
 | Test Documentation Integrity | Keeps automated scenario metadata, execution plans, display names, and Qase IDs synchronized |

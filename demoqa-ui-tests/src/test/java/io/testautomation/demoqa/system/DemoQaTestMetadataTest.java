@@ -7,11 +7,13 @@ import io.qase.commons.annotation.QaseId;
 import io.qase.commons.annotation.QaseIgnore;
 import io.testautomation.core.classification.Regression;
 import io.testautomation.core.classification.Smoke;
+import io.testautomation.core.classification.SystemTest;
+import io.testautomation.core.classification.TestTags;
 import io.testautomation.demoqa.framework.metadata.DemoQa;
 import io.testautomation.demoqa.framework.metadata.DemoQaFeature;
-import io.testautomation.demoqa.framework.metadata.DemoQaQuality;
 import io.testautomation.demoqa.framework.metadata.ReportGroup;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 
@@ -26,20 +28,19 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DemoQaQuality
-@ReportGroup("Test Documentation Integrity")
+@SystemTest
 @DisplayName("DemoQA test documentation integrity")
 class DemoQaTestMetadataTest {
     private static final Map<Long, String> EXPECTED_CASES = expectedCases();
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     @DisplayName("[Metadata] Verify that automated DemoQA scenarios remain synchronized with Qase")
     void shouldSynchronizeAutomatedScenariosWithDemoQaQaseCases() {
         List<Class<?>> testClasses = productTestClasses();
         assertThat(testClasses).isNotEmpty();
+        assertThat(Arrays.stream(DemoQa.class.getAnnotationsByType(Tag.class)).map(Tag::value))
+                .contains(TestTags.BUSINESS);
 
         Map<Long, String> discoveredCases = new LinkedHashMap<>();
         for (Class<?> testClass : testClasses) {
@@ -62,8 +63,6 @@ class DemoQaTestMetadataTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     @DisplayName("[Metadata] Verify that system tests remain excluded from Qase reporting")
     void shouldKeepSystemTestsOutOfQaseReporting() {
         List<Class<?>> qualityTestClasses = new ClassFileImporter()
@@ -76,9 +75,11 @@ class DemoQaTestMetadataTest {
 
         assertThat(qualityTestClasses).isNotEmpty();
         for (Class<?> testClass : qualityTestClasses) {
+            assertThat(testClass.isAnnotationPresent(SystemTest.class)).isTrue();
             for (Method method : testClass.getDeclaredMethods()) {
                 if (isTestMethod(method)) {
                     assertThat(method.isAnnotationPresent(QaseIgnore.class)).isTrue();
+                    assertThat(hasTestPlan(method)).isFalse();
                 }
             }
         }

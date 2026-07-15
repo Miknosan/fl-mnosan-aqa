@@ -4,12 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import io.qase.commons.annotation.QaseIgnore;
-import io.testautomation.core.classification.Regression;
-import io.testautomation.core.classification.Smoke;
+import io.testautomation.core.classification.SystemTest;
 import io.testautomation.hygraph.config.HygraphConfig;
-import io.testautomation.hygraph.framework.metadata.GraphQlPlatformFeature;
-import io.testautomation.hygraph.framework.metadata.Hygraph;
-import io.testautomation.hygraph.framework.metadata.ReportGroup;
 import io.testautomation.hygraph.graphql.client.GraphQlClient;
 import io.testautomation.hygraph.graphql.client.GraphQlResponseDeserializationException;
 import io.testautomation.hygraph.graphql.document.GraphQlDocumentLoader;
@@ -31,9 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@Hygraph
-@GraphQlPlatformFeature
-@ReportGroup("GraphQL transport")
+@SystemTest
 class GraphQlClientComponentTest {
     private static final TypeReference<GraphQlResponse<Map<String, String>>> RESPONSE_TYPE = new TypeReference<>() {
     };
@@ -56,8 +50,6 @@ class GraphQlClientComponentTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldPreserveTransportMetadataWhenResponseIsValid() {
         respondWith(200, "{\"data\":{\"value\":\"ok\"}}", "trace-123");
 
@@ -79,8 +71,6 @@ class GraphQlClientComponentTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldPreservePartialDataAndErrorsWhenResponseContainsBoth() {
         respondWith(
                 200,
@@ -104,8 +94,6 @@ class GraphQlClientComponentTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldExposeOperationAndResponseWhenDeserializationFails() {
         respondWith(502, "not-json", "trace-789");
         GraphQlRequest request = request("broken.graphql", Map.of(), "Broken");

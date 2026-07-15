@@ -1,10 +1,7 @@
 package io.testautomation.booker.system;
 
 import io.qase.commons.annotation.QaseIgnore;
-import io.testautomation.booker.framework.metadata.BookerQuality;
-import io.testautomation.booker.framework.metadata.ReportGroup;
-import io.testautomation.core.classification.Regression;
-import io.testautomation.core.classification.Smoke;
+import io.testautomation.core.classification.SystemTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -16,14 +13,11 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@BookerQuality
-@ReportGroup("Source quality")
+@SystemTest
 @DisplayName("Booker source quality gates")
 class SourceQualityTest {
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     @DisplayName("[Source Quality] Verify that Java sources remain free of comments and debt markers")
     void shouldKeepJavaSourcesFreeOfCommentsAndDebtMarkers() throws IOException {
         List<String> violations = new ArrayList<>();

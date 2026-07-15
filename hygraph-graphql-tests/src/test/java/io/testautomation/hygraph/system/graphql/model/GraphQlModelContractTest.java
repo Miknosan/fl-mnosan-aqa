@@ -1,11 +1,7 @@
 package io.testautomation.hygraph.system.graphql.model;
 
 import io.qase.commons.annotation.QaseIgnore;
-import io.testautomation.core.classification.Regression;
-import io.testautomation.core.classification.Smoke;
-import io.testautomation.hygraph.framework.metadata.GraphQlPlatformFeature;
-import io.testautomation.hygraph.framework.metadata.Hygraph;
-import io.testautomation.hygraph.framework.metadata.ReportGroup;
+import io.testautomation.core.classification.SystemTest;
 import io.testautomation.hygraph.graphql.model.GraphQlError;
 import io.testautomation.hygraph.graphql.model.GraphQlRequest;
 import io.testautomation.hygraph.graphql.model.GraphQlResponse;
@@ -20,14 +16,10 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@Hygraph
-@GraphQlPlatformFeature
-@ReportGroup("Protocol models")
+@SystemTest
 class GraphQlModelContractTest {
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldDefensivelyCopyRequestVariablesAndResponseCollections() {
         Map<String, Object> variables = new LinkedHashMap<>();
         variables.put("first", 2);
@@ -48,8 +40,6 @@ class GraphQlModelContractTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldRejectInvalidTransportResultState() {
         GraphQlResponse<Object> response = new GraphQlResponse<>(Map.of(), List.of());
 

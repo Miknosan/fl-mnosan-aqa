@@ -7,11 +7,13 @@ import io.qase.commons.annotation.QaseId;
 import io.qase.commons.annotation.QaseIgnore;
 import io.testautomation.booker.framework.metadata.Booker;
 import io.testautomation.booker.framework.metadata.BookerFeature;
-import io.testautomation.booker.framework.metadata.BookerQuality;
 import io.testautomation.booker.framework.metadata.ReportGroup;
 import io.testautomation.core.classification.Regression;
 import io.testautomation.core.classification.Smoke;
+import io.testautomation.core.classification.SystemTest;
+import io.testautomation.core.classification.TestTags;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 
@@ -26,8 +28,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@BookerQuality
-@ReportGroup("Test Documentation Integrity")
+@SystemTest
 @DisplayName("Booker test documentation integrity")
 class BookerTestMetadataTest {
     private static final Map<Long, String> EXPECTED_CASES = Map.of(
@@ -44,12 +45,12 @@ class BookerTestMetadataTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     @DisplayName("[Metadata] Verify that automated Booker scenarios remain synchronized with Qase")
     void shouldSynchronizeAutomatedScenariosWithBookerQaseCases() {
         List<Class<?>> testClasses = productTestClasses();
         assertThat(testClasses).isNotEmpty();
+        assertThat(Arrays.stream(Booker.class.getAnnotationsByType(Tag.class)).map(Tag::value))
+                .contains(TestTags.BUSINESS);
 
         Map<Long, String> discoveredCases = new LinkedHashMap<>();
         for (Class<?> testClass : testClasses) {
@@ -72,8 +73,6 @@ class BookerTestMetadataTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     @DisplayName("[Metadata] Verify that system tests remain excluded from Qase reporting")
     void shouldKeepSystemTestsOutOfQaseReporting() {
         List<Class<?>> systemTestClasses = new ClassFileImporter()
@@ -86,9 +85,11 @@ class BookerTestMetadataTest {
 
         assertThat(systemTestClasses).isNotEmpty();
         for (Class<?> testClass : systemTestClasses) {
+            assertThat(testClass.isAnnotationPresent(SystemTest.class)).isTrue();
             for (Method method : testClass.getDeclaredMethods()) {
                 if (isTestMethod(method)) {
                     assertThat(method.isAnnotationPresent(QaseIgnore.class)).isTrue();
+                    assertThat(hasTestPlan(method)).isFalse();
                 }
             }
         }

@@ -35,7 +35,7 @@ src/test/java/io/testautomation/hygraph/
     └── SourceQualityTest
 ```
 
-The test tree has three explicit entry points. `features/*/scenarios` contains executable business scenarios mapped to Qase. `system` contains GraphQL platform, contract, architecture, metadata, and source-quality tests. `framework` contains reusable test infrastructure and no executable scenarios.
+The test tree has three explicit entry points. `features/*/scenarios` contains executable business scenarios mapped to Qase. `system` contains local GraphQL platform, architecture, metadata, and source-quality checks. The published-schema introspection check uses the separate `external-contract` classification. `framework` contains reusable test infrastructure and no executable scenarios.
 
 ## Adding a feature
 
@@ -48,7 +48,13 @@ The test tree has three explicit entry points. `features/*/scenarios` contains e
 
 ## Quality gates
 
-The module validates GraphQL document syntax locally and validates executable documents against the published schema through introspection. ArchUnit prevents protocol-to-feature coupling, client dependencies on test frameworks, invalid executable-test placement, and package cycles. Metadata checks enforce one feature per Movie Catalog test, required plans and report groups, unique Qase IDs, and Qase exclusion for system tests.
+The automatic pull-request gate validates GraphQL document syntax locally and runs architecture, metadata, configuration, model, and loopback transport checks without calling the public Hygraph service. Published-schema introspection remains an explicit `external-contract` execution. Metadata checks enforce one feature per Movie Catalog test, required plans and report groups, unique Qase IDs, and Qase exclusion for non-business tests.
+
+```bash
+./mvnw -pl hygraph-graphql-tests -am clean test \
+  -Dtest.environment=dev \
+  -Dgroups=external-contract
+```
 
 Use `clean test` or `clean verify` when generating reports so renamed or removed tests cannot leave stale Surefire or Allure artifacts.
 

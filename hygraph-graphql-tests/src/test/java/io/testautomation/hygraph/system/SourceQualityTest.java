@@ -2,11 +2,7 @@ package io.testautomation.hygraph.system;
 
 import graphql.parser.Parser;
 import io.qase.commons.annotation.QaseIgnore;
-import io.testautomation.core.classification.Regression;
-import io.testautomation.core.classification.Smoke;
-import io.testautomation.hygraph.framework.metadata.GraphQlPlatformFeature;
-import io.testautomation.hygraph.framework.metadata.Hygraph;
-import io.testautomation.hygraph.framework.metadata.ReportGroup;
+import io.testautomation.core.classification.SystemTest;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -18,9 +14,7 @@ import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Hygraph
-@GraphQlPlatformFeature
-@ReportGroup("Source quality")
+@SystemTest
 class SourceQualityTest {
     private static final Pattern INLINE_GRAPHQL =
             Pattern.compile(
@@ -29,8 +23,6 @@ class SourceQualityTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldKeepJavaSourcesFreeOfCommentsDebtMarkersAndInlineGraphQl() throws IOException {
         List<String> violations = new ArrayList<>();
         for (Path sourceRoot : List.of(moduleDirectory().resolve("src/main/java"), moduleDirectory().resolve("src/test/java"))) {
@@ -46,8 +38,6 @@ class SourceQualityTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldKeepGraphQlResourcesNonBlankAndSyntacticallyValid() throws IOException {
         List<String> violations = new ArrayList<>();
         Path resources = moduleDirectory().resolve("src/main/resources/graphql");

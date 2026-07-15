@@ -1,23 +1,33 @@
 # CI/CD Quality Pipeline
 
-The `Quality gate` GitHub Actions workflow is the single CI/CD entry point for compile validation, environment-aware domain execution, test evidence retention, Qase TestOps synchronization, consolidated Allure reporting, and optional report delivery through GitHub Pages.
+GitHub Actions separates framework validation from product verification. `Pull request quality gates` automatically protects architecture and test infrastructure, while the manually dispatched `Quality gate` owns environment-aware business execution, evidence retention, Qase TestOps synchronization, consolidated Allure reporting, and optional GitHub Pages delivery.
 
 ## Trigger policy
 
 | Trigger | Environment | Domains | Test plan | Publication |
 |---|---|---|---|---|
+| Pull request to `main` | none | all local quality gates | system | none |
 | Manual dispatch | user selection | user selection | user selection | user selection |
 
-The workflow starts only through `Actions / Quality gate / Run workflow`. Manual domain selection accepts `all` or a comma-separated list containing `booker`, `hygraph`, and `demoqa`. The environment input is validated against `config/environments/<environment>.properties`, so a newly committed profile is immediately available without a workflow code change.
+Pull-request runs execute shared unit tests and local domain system gates. Superseded runs for the same PR are cancelled, no environment secrets are exposed, no public assignment service is called, and no Qase or Allure report is published.
+
+Business verification starts through `Actions / Quality gate / Run workflow`. Manual domain selection accepts `all` or a comma-separated list containing `booker`, `hygraph`, and `demoqa`. The environment input is validated against `config/environments/<environment>.properties`, so a newly committed profile is immediately available without a workflow code change.
 
 Runs targeting the same environment are queued instead of cancelled or executed concurrently. Different environments can execute independently.
 
-## Pipeline stages
+## Pull-request stages
+
+1. `Core and orchestrator unit tests` validates shared configuration and command orchestration.
+2. Booker, Hygraph, and DemoQA system gates execute as an independent matrix with `fail-fast` disabled.
+3. The `system` selection includes architecture, metadata, source-quality, configuration, model, document, and loopback component checks.
+4. The live Hygraph schema check is classified as `external-contract` and is excluded from the deterministic PR gate.
+
+## Manual pipeline stages
 
 1. `Prepare execution` validates environment, domains, test plan, publication flags, and generates the domain matrix.
 2. `Compile framework` compiles production and test sources before external test infrastructure is used and verifies the CI script contracts.
 3. `Create consolidated Qase run` creates one environment-aware run when Qase publication is requested and exposes its ID to every selected domain.
-4. Domain jobs run in parallel with `fail-fast` disabled, publish into the shared Qase run, and reference the selected GitHub Environment without creating deployment records.
+4. Domain jobs run only `business` scenarios for the selected plan, execute in parallel with `fail-fast` disabled, publish into the shared Qase run, and reference the selected GitHub Environment without creating deployment records.
 5. `Complete and share consolidated Qase run` executes with `always()` after the domain matrix, closes the shared run, and enables its public report.
 6. Every domain retains Surefire, raw Allure, screenshot, trace, and Qase fallback evidence even when its tests fail.
 7. `Build consolidated Allure report` downloads all available domain evidence and produces one HTML report with execution metadata.
@@ -72,4 +82,4 @@ A manually selected DemoQA regression includes DA-52. Its six deterministic fail
 
 ## Supply-chain maintenance
 
-Third-party workflow actions are pinned to immutable commit SHAs. Dependabot checks Maven and GitHub Actions dependencies weekly and proposes controlled updates. Each dependency update is verified by explicitly launching the manual quality pipeline with the required scope.
+Third-party workflow actions are pinned to immutable commit SHAs. Dependabot checks Maven and GitHub Actions dependencies weekly and proposes controlled updates. Each dependency update is checked by the automatic pull-request quality gates. Environment-facing business verification remains an explicit manual decision with the required scope.
