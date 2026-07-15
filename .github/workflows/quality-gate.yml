@@ -409,10 +409,12 @@ jobs:
 
   publish-report:
     name: Publish Allure report
-    if: needs.prepare.outputs.publish_report == 'true' && needs.report.result == 'success'
+    if: always() && needs.prepare.outputs.publish_report == 'true' && needs.report.result == 'success'
     needs: [prepare, report]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     permissions:
       pages: write
       id-token: write
@@ -444,6 +446,7 @@ jobs:
           REPORT_RESULT: ${{ needs.report.result }}
           PUBLISH_RESULT: ${{ needs.publish-report.result }}
           PUBLISH_REQUESTED: ${{ needs.prepare.outputs.publish_report }}
+          ALLURE_REPORT_URL: ${{ needs.publish-report.outputs.page_url }}
         run: |
           {
             echo "### Final quality gate"
@@ -459,6 +462,9 @@ jobs:
             fi
             if [[ -n "$QASE_PUBLIC_RUN_URL" ]]; then
               echo "- Public Qase report: $QASE_PUBLIC_RUN_URL"
+            fi
+            if [[ -n "$ALLURE_REPORT_URL" ]]; then
+              echo "- Public Allure report: $ALLURE_REPORT_URL"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
