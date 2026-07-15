@@ -1,5 +1,7 @@
 package io.testautomation.orchestrator;
 
+import io.testautomation.core.config.ExecutionEnvironment;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -22,6 +24,7 @@ final class MavenCommandFactory {
     }
 
     static List<String> create(Path projectRoot, ExecutionSelection selection) {
+        Path environmentProfile = selection.environment().catalogProfile(projectRoot);
         List<String> command = new ArrayList<>();
         command.add(projectRoot.resolve(isWindows() ? "mvnw.cmd" : "mvnw").toString());
         command.add("--batch-mode");
@@ -37,9 +40,8 @@ final class MavenCommandFactory {
             command.add("-Djunit.jupiter.execution.parallel.config.strategy=fixed");
             command.add("-Djunit.jupiter.execution.parallel.config.fixed.parallelism=" + selection.parallelism());
         }
-        if (!selection.environment().isBlank()) {
-            command.add("-Dtest.environment=" + selection.environment());
-        }
+        command.add("-D" + ExecutionEnvironment.SYSTEM_PROPERTY + "=" + selection.environment().value());
+        command.add("-D" + ExecutionEnvironment.CONFIG_FILE_PROPERTY + "=" + environmentProfile);
         return List.copyOf(command);
     }
 

@@ -1,5 +1,7 @@
 package io.testautomation.orchestrator;
 
+import io.testautomation.core.config.ExecutionEnvironment;
+
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -12,7 +14,7 @@ record ExecutionSelection(
         Set<Domain> domains,
         Set<TestPlan> plans,
         String feature,
-        String environment,
+        ExecutionEnvironment environment,
         int parallelism) {
     private static final Pattern SAFE_VALUE = Pattern.compile("[a-z0-9][a-z0-9-]*");
 
@@ -20,11 +22,10 @@ record ExecutionSelection(
         Set<Domain> domains = parseDomains(required("domains"));
         Set<TestPlan> plans = parsePlans(required("plans"));
         String feature = optional("feature");
-        String environment = optional("environment");
+        ExecutionEnvironment environment = new ExecutionEnvironment(requiredEnvironment());
         int parallelism = Integer.parseInt(System.getProperty("parallelism", "1"));
 
         validateOptional("feature", feature);
-        validateOptional("environment", environment);
         if (parallelism < 1 || parallelism > 8) {
             throw new IllegalArgumentException("parallelism must be between 1 and 8");
         }
@@ -81,6 +82,18 @@ record ExecutionSelection(
 
     private static String optional(String name) {
         return System.getProperty(name, "").trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String requiredEnvironment() {
+        String value = System.getProperty("environment");
+        if (value == null || value.isBlank()) {
+            value = System.getenv(ExecutionEnvironment.ENVIRONMENT_VARIABLE);
+        }
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("Missing execution environment. Provide -Denvironment=<name> or "
+                    + ExecutionEnvironment.ENVIRONMENT_VARIABLE);
+        }
+        return value;
     }
 
     private static void validateOptional(String name, String value) {

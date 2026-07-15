@@ -15,6 +15,7 @@ public final class QaOrchestrator {
 
         System.out.println("Domains: " + selection.domains());
         System.out.println("Plans: " + selection.plans());
+        System.out.println("Environment: " + selection.environment().displayName());
         System.out.println("JUnit tag expression: " + selection.tagExpression());
         System.out.println("Modules: " + selection.modules());
 
