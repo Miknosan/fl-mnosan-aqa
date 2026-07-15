@@ -1,0 +1,15 @@
+{
+  "mode": "off",
+  "fallback": "report",
+  "debug": false,
+  "testops": {
+    "project": "DA",
+    "run": {
+      "title": "Booker API automated tests",
+      "complete": true
+    },
+    "batch": {
+      "size": 200
+    }
+  }
+}

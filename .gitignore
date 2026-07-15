@@ -1,0 +1,81 @@
+# Maven build and release artifacts
+target/
+dependency-reduced-pom.xml
+pom.xml.asc
+pom.xml.next
+pom.xml.releaseBackup
+pom.xml.tag
+pom.xml.versionsBackup
+release.properties
+.flattened-pom.xml
+
+# Java runtime artifacts
+*.class
+*.hprof
+hs_err_pid*
+replay_pid*
+
+# IDE and editor metadata
+.idea/
+.fleet/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+.factorypath
+.metadata/
+bin/
+nb-configuration.xml
+nbactions.xml
+nbproject/private/
+
+# OS-generated files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Test reports and runtime artifacts
+allure-results/
+allure-report/
+build/qase-report/
+playwright-report/
+blob-report/
+test-results/
+screenshots/
+traces/
+videos/
+
+# Playwright local cache (browser binaries are installed outside the project)
+.playwright/
+playwright/.cache/
+
+# Local configuration, environment files, and secrets
+.env
+.env.*
+!.env.example
+*.local.properties
+config/local.properties
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+*.tmp
+*.swp
+*.swo
+*~
+
+# Local architecture-analysis output
+graphify-out/
+
+# Local agent architecture instructions
+AGENT.md
