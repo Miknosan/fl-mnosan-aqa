@@ -1,72 +1,335 @@
 name: Quality gate
 
 on:
-  pull_request:
-  push:
-    branches: [main]
-  schedule:
-    - cron: '0 3 * * *'
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment profile name from config/environments
+        required: true
+        default: dev
+        type: string
+      domains:
+        description: all or a comma-separated list of booker, hygraph, demoqa
+        required: true
+        default: all
+        type: string
+      test_plan:
+        description: Test plan
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - regression
+          - sanity
+      publish_to_qase:
+        description: Publish domain runs to Qase TestOps
+        required: true
+        default: false
+        type: boolean
+      publish_allure_report:
+        description: Publish the consolidated Allure report to GitHub Pages
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: quality-gate-${{ inputs.environment }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
+  prepare:
+    name: Prepare execution
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.selection.outputs.matrix }}
+      environment: ${{ steps.selection.outputs.environment }}
+      plan: ${{ steps.selection.outputs.plan }}
+      publish_qase: ${{ steps.selection.outputs.publish_qase }}
+      publish_report: ${{ steps.selection.outputs.publish_report }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Resolve and validate execution
+        id: selection
+        env:
+          SELECTED_ENVIRONMENT: ${{ inputs.environment }}
+          SELECTED_DOMAINS: ${{ inputs.domains }}
+          SELECTED_PLAN: ${{ inputs.test_plan }}
+          PUBLISH_QASE: ${{ inputs.publish_to_qase }}
+          PUBLISH_REPORT: ${{ inputs.publish_allure_report }}
+        run: |
+          .github/scripts/resolve-execution.sh \
+            "$SELECTED_ENVIRONMENT" \
+            "$SELECTED_DOMAINS" \
+            "$SELECTED_PLAN" \
+            "$PUBLISH_QASE" \
+            "$PUBLISH_REPORT" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize execution
+        env:
+          ENVIRONMENT: ${{ steps.selection.outputs.environment }}
+          PLAN: ${{ steps.selection.outputs.plan }}
+          MATRIX: ${{ steps.selection.outputs.matrix }}
+          PUBLISH_QASE: ${{ steps.selection.outputs.publish_qase }}
+          PUBLISH_REPORT: ${{ steps.selection.outputs.publish_report }}
+        run: |
+          {
+            echo "### Execution selection"
+            echo "- Environment: $ENVIRONMENT"
+            echo "- Test plan: $PLAN"
+            echo "- Matrix: \`$MATRIX\`"
+            echo "- Qase publication: $PUBLISH_QASE"
+            echo "- Allure Pages publication: $PUBLISH_REPORT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   compile:
+    name: Compile framework
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
         with:
           distribution: temurin
           java-version: '17'
           cache: maven
+
+      - name: Verify execution selection contract
+        run: .github/scripts/resolve-execution-test.sh
 
       - name: Compile multi-module framework
         run: ./mvnw --batch-mode --no-transfer-progress clean test-compile
 
-  api-tests:
-    needs: compile
+  domain-tests:
+    name: Test ${{ matrix.domain }} on ${{ needs.prepare.outputs.environment }}
+    needs: [prepare, compile]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    environment:
+      name: ${{ needs.prepare.outputs.environment }}
+      deployment: false
     strategy:
       fail-fast: false
-      matrix:
-        module:
-          - booker-api-tests
-          - hygraph-graphql-tests
+      max-parallel: 3
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    env:
+      TEST_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+      TEST_PLAN: ${{ needs.prepare.outputs.plan }}
+      PUBLISH_QASE: ${{ needs.prepare.outputs.publish_qase }}
+      QASE_TESTOPS_API_TOKEN: ${{ needs.prepare.outputs.publish_qase == 'true' && secrets.QASE_TESTOPS_API_TOKEN || '' }}
+      BOOKER_BASE_URL: ${{ matrix.domain == 'booker' && vars.BOOKER_BASE_URL || '' }}
+      BOOKER_USERNAME: ${{ matrix.domain == 'booker' && secrets.BOOKER_USERNAME || '' }}
+      BOOKER_PASSWORD: ${{ matrix.domain == 'booker' && secrets.BOOKER_PASSWORD || '' }}
+      HYGRAPH_BASE_URL: ${{ matrix.domain == 'hygraph' && vars.HYGRAPH_BASE_URL || '' }}
+      DEMOQA_BASE_URL: ${{ matrix.domain == 'demoqa' && vars.DEMOQA_BASE_URL || '' }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
         with:
           distribution: temurin
           java-version: '17'
           cache: maven
 
-      - name: Execute API quality gate
-        shell: bash
+      - name: Configure Qase reporting
+        env:
+          RUN_TITLE: "${{ matrix.domain }} | ${{ needs.prepare.outputs.environment }} | ${{ needs.prepare.outputs.plan }} | GitHub #${{ github.run_number }}"
         run: |
-          plan=smoke
-          if [[ "${{ github.event_name }}" == "schedule" ]]; then
-            plan=regression
+          if [[ "$PUBLISH_QASE" == "true" ]]; then
+            if [[ -z "$QASE_TESTOPS_API_TOKEN" ]]; then
+              echo "QASE_TESTOPS_API_TOKEN is required when Qase publication is enabled" >&2
+              exit 1
+            fi
+            {
+              echo "QASE_MODE=testops"
+              echo "QASE_ENVIRONMENT=$TEST_ENVIRONMENT"
+              echo "QASE_TESTOPS_RUN_TITLE=$RUN_TITLE"
+            } >> "$GITHUB_ENV"
+          else
+            echo "QASE_MODE=off" >> "$GITHUB_ENV"
           fi
-          ./mvnw --batch-mode --no-transfer-progress \
-            -pl "${{ matrix.module }}" -am clean verify -Dgroups="$plan"
 
-      - name: Retain test evidence
+      - name: Install Playwright Chromium
+        if: matrix.ui
+        run: |
+          ./mvnw --batch-mode --no-transfer-progress \
+            -pl demoqa-ui-tests -am install -DskipTests
+          ./mvnw --batch-mode --no-transfer-progress \
+            -pl demoqa-ui-tests exec:java \
+            -Dexec.mainClass=com.microsoft.playwright.CLI \
+            -Dexec.args="install --with-deps chromium"
+
+      - name: Execute domain quality gate
+        id: execute
+        run: |
+          ./mvnw --batch-mode --no-transfer-progress \
+            -pl "${{ matrix.module }}" -am clean verify \
+            -Dtest.environment="$TEST_ENVIRONMENT" \
+            -Dgroups="$TEST_PLAN"
+
+      - name: Summarize domain result
         if: always()
-        uses: actions/upload-artifact@v4
+        env:
+          OUTCOME: ${{ steps.execute.outcome }}
+        run: |
+          {
+            echo "### ${{ matrix.domain }}"
+            echo "- Environment: $TEST_ENVIRONMENT"
+            echo "- Test plan: $TEST_PLAN"
+            echo "- Outcome: $OUTCOME"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain domain evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: ${{ matrix.module }}-test-evidence
+          name: ${{ matrix.domain }}-${{ needs.prepare.outputs.environment }}-${{ needs.prepare.outputs.plan }}-test-evidence
           path: |
             ${{ matrix.module }}/target/surefire-reports
             ${{ matrix.module }}/target/allure-results
+            ${{ matrix.module }}/target/test-artifacts
           if-no-files-found: warn
           retention-days: 14
+
+  report:
+    name: Build consolidated Allure report
+    if: always() && needs.prepare.result == 'success' && needs.compile.result == 'success'
+    needs: [prepare, compile, domain-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Download domain evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: '*-test-evidence'
+          path: evidence
+
+      - name: Set up Java
+        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '24'
+
+      - name: Install Allure command line
+        run: npm install --global allure-commandline@2.43.0
+
+      - name: Generate consolidated report
+        env:
+          TEST_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+          TEST_PLAN: ${{ needs.prepare.outputs.plan }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          result_directories=()
+          while IFS= read -r directory; do
+            result_directories+=("$directory")
+          done < <(find evidence -type d -name allure-results -print | sort)
+          if (( ${#result_directories[@]} == 0 )); then
+            echo "No Allure result directories were downloaded" >&2
+            exit 1
+          fi
+
+          metadata_directory="evidence/run-metadata/allure-results"
+          mkdir -p "$metadata_directory"
+          {
+            echo "Environment=$TEST_ENVIRONMENT"
+            echo "Test plan=$TEST_PLAN"
+            echo "Git reference=${{ github.ref_name }}"
+          } > "$metadata_directory/environment.properties"
+          jq -n \
+            --arg name "GitHub Actions" \
+            --arg type "github" \
+            --arg url "$RUN_URL" \
+            --arg buildName "Quality gate #${{ github.run_number }}" \
+            --arg buildUrl "$RUN_URL" \
+            '{name: $name, type: $type, url: $url, buildName: $buildName, buildUrl: $buildUrl}' \
+            > "$metadata_directory/executor.json"
+
+          allure generate \
+            "${result_directories[@]}" \
+            "$metadata_directory" \
+            --clean \
+            --output target/allure-report
+
+      - name: Retain consolidated Allure report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: allure-report-${{ github.run_id }}
+          path: target/allure-report
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Package report for GitHub Pages
+        if: needs.prepare.outputs.publish_report == 'true'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: target/allure-report
+
+  publish-report:
+    name: Publish Allure report
+    if: needs.prepare.outputs.publish_report == 'true' && needs.report.result == 'success'
+    needs: [prepare, report]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy report to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5
+
+  quality-gate:
+    name: Final quality gate
+    if: always()
+    needs: [prepare, compile, domain-tests, report, publish-report]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate pipeline
+        env:
+          PREPARE_RESULT: ${{ needs.prepare.result }}
+          COMPILE_RESULT: ${{ needs.compile.result }}
+          TEST_RESULT: ${{ needs.domain-tests.result }}
+          REPORT_RESULT: ${{ needs.report.result }}
+          PUBLISH_RESULT: ${{ needs.publish-report.result }}
+          PUBLISH_REQUESTED: ${{ needs.prepare.outputs.publish_report }}
+        run: |
+          {
+            echo "### Final quality gate"
+            echo "- Preparation: $PREPARE_RESULT"
+            echo "- Compilation: $COMPILE_RESULT"
+            echo "- Domain tests: $TEST_RESULT"
+            echo "- Allure report: $REPORT_RESULT"
+            echo "- Report publication: $PUBLISH_RESULT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          [[ "$PREPARE_RESULT" == "success" ]]
+          [[ "$COMPILE_RESULT" == "success" ]]
+          [[ "$TEST_RESULT" == "success" ]]
+          [[ "$REPORT_RESULT" == "success" ]]
+          if [[ "$PUBLISH_REQUESTED" == "true" ]]; then
+            [[ "$PUBLISH_RESULT" == "success" ]]
+          fi

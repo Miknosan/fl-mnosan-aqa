@@ -13,7 +13,8 @@ public final class ConfigLoader {
 
     public static Properties load(String classpathResource, Collection<String> keys) {
         Properties properties = classpathProperties(classpathResource);
-        loadOptionalFile(properties);
+        ExecutionEnvironment environment = ExecutionEnvironment.current();
+        loadEnvironmentProfile(properties, environment);
 
         for (String key : keys) {
             String environmentValue = System.getenv(environmentName(key));
@@ -51,17 +52,23 @@ public final class ConfigLoader {
         }
     }
 
-    private static void loadOptionalFile(Properties properties) {
-        String configuredPath = System.getProperty("config.file");
-        if (configuredPath == null || configuredPath.isBlank()) {
-            return;
-        }
-
-        Path path = Path.of(configuredPath);
+    private static void loadEnvironmentProfile(Properties properties, ExecutionEnvironment environment) {
+        Path path = environment.resolveProfile(Path.of(System.getProperty("user.dir")));
         try (InputStream stream = Files.newInputStream(path)) {
             properties.load(stream);
         } catch (IOException exception) {
             throw new IllegalStateException("Cannot read configuration file: " + path.toAbsolutePath(), exception);
+        }
+
+        String declaredEnvironment = properties.getProperty(ExecutionEnvironment.SYSTEM_PROPERTY);
+        if (declaredEnvironment == null || declaredEnvironment.isBlank()) {
+            throw new IllegalStateException("Environment profile must declare "
+                    + ExecutionEnvironment.SYSTEM_PROPERTY + ": " + path);
+        }
+        ExecutionEnvironment profileEnvironment = new ExecutionEnvironment(declaredEnvironment);
+        if (!profileEnvironment.equals(environment)) {
+            throw new IllegalStateException("Environment profile declares " + profileEnvironment.value()
+                    + " but execution requested " + environment.value() + ": " + path);
         }
     }
 
