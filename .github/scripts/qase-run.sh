@@ -58,6 +58,14 @@ qase_request() {
   curl "${arguments[@]}" "$api_base_url/$endpoint"
 }
 
+validate_run_id() {
+  local run_id=$1
+  if [[ ! "$run_id" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Invalid Qase run identifier: $run_id" >&2
+    exit 1
+  fi
+}
+
 create_run() {
   local title=${1:-}
   local environment_slug=${2:-}
@@ -99,10 +107,7 @@ create_run() {
 
 complete_run() {
   local run_id=${1:-}
-  if [[ ! "$run_id" =~ ^[1-9][0-9]*$ ]]; then
-    echo "Invalid Qase run identifier: $run_id" >&2
-    exit 1
-  fi
+  validate_run_id "$run_id"
 
   local response
   response=$(qase_request POST "run/$project_code/$run_id/complete")
@@ -112,6 +117,23 @@ complete_run() {
   fi
 }
 
+share_run() {
+  local run_id=${1:-}
+  validate_run_id "$run_id"
+
+  local response
+  response=$(qase_request PATCH "run/$project_code/$run_id/public" '{"status":true}')
+  if ! jq -e '
+    .status == true
+    and (.result.url | type == "string")
+    and (.result.url | test("^https://"))
+  ' <<< "$response" >/dev/null; then
+    echo "Qase did not return a valid public report URL" >&2
+    exit 1
+  fi
+  jq -r '.result.url' <<< "$response"
+}
+
 case "${1:-}" in
   create)
     create_run "${2:-}" "${3:-}" "${4:-}"
@@ -119,8 +141,11 @@ case "${1:-}" in
   complete)
     complete_run "${2:-}"
     ;;
+  share)
+    share_run "${2:-}"
+    ;;
   *)
-    echo "Usage: $0 create <title> <environment-slug> [description] | complete <run-id>" >&2
+    echo "Usage: $0 create <title> <environment-slug> [description] | complete <run-id> | share <run-id>" >&2
     exit 1
     ;;
 esac
