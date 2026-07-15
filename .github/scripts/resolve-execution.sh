@@ -84,8 +84,11 @@ for domain in "${domains[@]}"; do
 done
 
 matrix=$(IFS=,; printf '{"include":[%s]}' "${matrix_entries[*]}")
+selected_domains=${selected_domain_list#,}
+selected_domains=${selected_domains%,}
 
 echo "environment=$environment_name"
+echo "domains=$selected_domains"
 echo "plan=$test_plan"
 echo "publish_qase=$publish_qase"
 echo "publish_report=$publish_report"
