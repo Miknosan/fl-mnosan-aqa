@@ -164,7 +164,7 @@ The assignment systems expose one public endpoint per domain, so the committed `
 
 ## CI/CD
 
-GitHub Actions provides an exclusively manual quality pipeline with validated environment, domain, and test-plan selection, parallel domain jobs, environment-scoped configuration, optional Qase publication, consolidated Allure generation, and optional GitHub Pages delivery. Repository settings, secrets, inputs, and operating rules are documented in [`docs/ci-cd.md`](docs/ci-cd.md).
+GitHub Actions provides an exclusively manual quality pipeline with validated environment, domain, and test-plan selection, parallel domain jobs, environment-scoped configuration, optional consolidated Qase publication, consolidated Allure generation, and optional GitHub Pages delivery. Repository settings, secrets, inputs, and operating rules are documented in [`docs/ci-cd.md`](docs/ci-cd.md).
 
 ### Qase TestOps
 
@@ -179,6 +179,8 @@ QASE_TESTOPS_API_TOKEN="<your-token>" \
 Replace `booker-api-tests` with `hygraph-graphql-tests` or `demoqa-ui-tests` to publish another domain suite. Set `QASE_TESTOPS_RUN_TITLE` to a domain-specific title for each run.
 
 The non-secret defaults, including project code `DA`, are stored in the root `qase.config.json`, where the reporter can discover them for direct and orchestrated Maven runs. Use `QASE_TESTOPS_RUN_TITLE` to override the run title or `QASE_TESTOPS_RUN_ID` to publish into an existing Qase run. Never store the API token in the repository.
+
+CI creates one Qase run per quality-gate execution and shares its ID across all selected domain jobs. The reporters append results without completing the run; a dedicated finalizer closes it after the full matrix, including failure paths. Public access is enabled manually from the completed run through `Share report`.
 
 ## Full build
 

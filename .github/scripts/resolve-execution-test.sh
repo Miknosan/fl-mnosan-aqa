@@ -19,12 +19,14 @@ all_output=$("$resolver" dev all smoke false false)
 all_matrix=$(printf '%s\n' "$all_output" | sed -n 's/^matrix=//p')
 jq -e '.include | length == 3' <<< "$all_matrix" >/dev/null
 jq -e '.include | map(.domain) == ["booker", "hygraph", "demoqa"]' <<< "$all_matrix" >/dev/null
+grep -qx 'domains=booker,hygraph,demoqa' <<< "$all_output"
 
 selected_output=$("$resolver" stage demoqa,booker,demoqa regression true true)
 selected_matrix=$(printf '%s\n' "$selected_output" | sed -n 's/^matrix=//p')
 jq -e '.include | length == 2' <<< "$selected_matrix" >/dev/null
 jq -e '.include | map(.domain) == ["demoqa", "booker"]' <<< "$selected_matrix" >/dev/null
 grep -qx 'environment=stage' <<< "$selected_output"
+grep -qx 'domains=demoqa,booker' <<< "$selected_output"
 grep -qx 'plan=regression' <<< "$selected_output"
 grep -qx 'publish_qase=true' <<< "$selected_output"
 grep -qx 'publish_report=true' <<< "$selected_output"

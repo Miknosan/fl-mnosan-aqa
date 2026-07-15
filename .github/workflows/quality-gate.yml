@@ -23,7 +23,7 @@ on:
           - regression
           - sanity
       publish_to_qase:
-        description: Publish domain runs to Qase TestOps
+        description: Publish selected domains to one Qase TestOps run
         required: true
         default: false
         type: boolean
@@ -48,6 +48,7 @@ jobs:
     outputs:
       matrix: ${{ steps.selection.outputs.matrix }}
       environment: ${{ steps.selection.outputs.environment }}
+      domains: ${{ steps.selection.outputs.domains }}
       plan: ${{ steps.selection.outputs.plan }}
       publish_qase: ${{ steps.selection.outputs.publish_qase }}
       publish_report: ${{ steps.selection.outputs.publish_report }}
@@ -74,6 +75,7 @@ jobs:
       - name: Summarize execution
         env:
           ENVIRONMENT: ${{ steps.selection.outputs.environment }}
+          DOMAINS: ${{ steps.selection.outputs.domains }}
           PLAN: ${{ steps.selection.outputs.plan }}
           MATRIX: ${{ steps.selection.outputs.matrix }}
           PUBLISH_QASE: ${{ steps.selection.outputs.publish_qase }}
@@ -82,6 +84,7 @@ jobs:
           {
             echo "### Execution selection"
             echo "- Environment: $ENVIRONMENT"
+            echo "- Domains: $DOMAINS"
             echo "- Test plan: $PLAN"
             echo "- Matrix: \`$MATRIX\`"
             echo "- Qase publication: $PUBLISH_QASE"
@@ -105,14 +108,66 @@ jobs:
           cache: maven
 
       - name: Verify execution selection contract
-        run: .github/scripts/resolve-execution-test.sh
+        run: |
+          .github/scripts/resolve-execution-test.sh
+          .github/scripts/qase-run-test.sh
 
       - name: Compile multi-module framework
         run: ./mvnw --batch-mode --no-transfer-progress clean test-compile
 
+  qase-run:
+    name: Create consolidated Qase run
+    needs: [prepare, compile]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: ${{ needs.prepare.outputs.environment }}
+      deployment: false
+    outputs:
+      run_id: ${{ steps.create.outputs.run_id }}
+      run_url: ${{ steps.create.outputs.run_url }}
+    env:
+      QASE_TESTOPS_API_TOKEN: ${{ needs.prepare.outputs.publish_qase == 'true' && secrets.QASE_TESTOPS_API_TOKEN || '' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Create shared run
+        id: create
+        if: needs.prepare.outputs.publish_qase == 'true'
+        env:
+          TEST_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+          SELECTED_DOMAINS: ${{ needs.prepare.outputs.domains }}
+          TEST_PLAN: ${{ needs.prepare.outputs.plan }}
+          RUN_TITLE: "Quality gate | ${{ needs.prepare.outputs.environment }} | ${{ needs.prepare.outputs.plan }} | GitHub #${{ github.run_number }}"
+          WORKFLOW_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        run: |
+          if [[ -z "$QASE_TESTOPS_API_TOKEN" ]]; then
+            echo "QASE_TESTOPS_API_TOKEN is required when Qase publication is enabled" >&2
+            exit 1
+          fi
+
+          run_description="Domains: $SELECTED_DOMAINS; GitHub Actions: $WORKFLOW_URL"
+          run_id=$(.github/scripts/qase-run.sh create "$RUN_TITLE" "$TEST_ENVIRONMENT" "$run_description")
+          project_code=$(jq -er '.testops.project' qase.config.json)
+          run_url="https://app.qase.io/run/$project_code/dashboard/$run_id"
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Consolidated Qase run"
+            echo "- Run: [$RUN_TITLE]($run_url)"
+            echo "- Domains: $SELECTED_DOMAINS"
+            echo "- Environment: $TEST_ENVIRONMENT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record disabled Qase publication
+        if: needs.prepare.outputs.publish_qase != 'true'
+        run: echo "Qase publication was not requested." >> "$GITHUB_STEP_SUMMARY"
+
   domain-tests:
     name: Test ${{ matrix.domain }} on ${{ needs.prepare.outputs.environment }}
-    needs: [prepare, compile]
+    needs: [prepare, compile, qase-run]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment:
@@ -126,6 +181,7 @@ jobs:
       TEST_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
       TEST_PLAN: ${{ needs.prepare.outputs.plan }}
       PUBLISH_QASE: ${{ needs.prepare.outputs.publish_qase }}
+      SHARED_QASE_RUN_ID: ${{ needs.qase-run.outputs.run_id }}
       QASE_TESTOPS_API_TOKEN: ${{ needs.prepare.outputs.publish_qase == 'true' && secrets.QASE_TESTOPS_API_TOKEN || '' }}
       BOOKER_BASE_URL: ${{ matrix.domain == 'booker' && vars.BOOKER_BASE_URL || '' }}
       BOOKER_USERNAME: ${{ matrix.domain == 'booker' && secrets.BOOKER_USERNAME || '' }}
@@ -144,18 +200,21 @@ jobs:
           cache: maven
 
       - name: Configure Qase reporting
-        env:
-          RUN_TITLE: "${{ matrix.domain }} | ${{ needs.prepare.outputs.environment }} | ${{ needs.prepare.outputs.plan }} | GitHub #${{ github.run_number }}"
         run: |
           if [[ "$PUBLISH_QASE" == "true" ]]; then
             if [[ -z "$QASE_TESTOPS_API_TOKEN" ]]; then
               echo "QASE_TESTOPS_API_TOKEN is required when Qase publication is enabled" >&2
               exit 1
             fi
+            if [[ ! "$SHARED_QASE_RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+              echo "A valid shared Qase run ID is required when Qase publication is enabled" >&2
+              exit 1
+            fi
             {
               echo "QASE_MODE=testops"
               echo "QASE_ENVIRONMENT=$TEST_ENVIRONMENT"
-              echo "QASE_TESTOPS_RUN_TITLE=$RUN_TITLE"
+              echo "QASE_TESTOPS_RUN_ID=$SHARED_QASE_RUN_ID"
+              echo "QASE_TESTOPS_RUN_COMPLETE=false"
             } >> "$GITHUB_ENV"
           else
             echo "QASE_MODE=off" >> "$GITHUB_ENV"
@@ -179,6 +238,18 @@ jobs:
             -Dtest.environment="$TEST_ENVIRONMENT" \
             -Dgroups="$TEST_PLAN"
 
+      - name: Verify Qase delivery
+        if: always() && needs.prepare.outputs.publish_qase == 'true'
+        run: |
+          fallback_report=""
+          if [[ -d build/qase-report ]]; then
+            fallback_report=$(find build/qase-report -type f -print -quit)
+          fi
+          if [[ -n "$fallback_report" ]]; then
+            echo "Qase reporter entered fallback mode; retained report: $fallback_report" >&2
+            exit 1
+          fi
+
       - name: Summarize domain result
         if: always()
         env:
@@ -200,8 +271,47 @@ jobs:
             ${{ matrix.module }}/target/surefire-reports
             ${{ matrix.module }}/target/allure-results
             ${{ matrix.module }}/target/test-artifacts
+            build/qase-report
           if-no-files-found: warn
           retention-days: 14
+
+  qase-finalize:
+    name: Complete consolidated Qase run
+    if: >-
+      always()
+      && needs.prepare.result == 'success'
+      && needs.qase-run.result == 'success'
+      && needs.prepare.outputs.publish_qase == 'true'
+      && needs.qase-run.outputs.run_id != ''
+    needs: [prepare, qase-run, domain-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: ${{ needs.prepare.outputs.environment }}
+      deployment: false
+    env:
+      QASE_TESTOPS_API_TOKEN: ${{ secrets.QASE_TESTOPS_API_TOKEN }}
+      QASE_RUN_ID: ${{ needs.qase-run.outputs.run_id }}
+      QASE_RUN_URL: ${{ needs.qase-run.outputs.run_url }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Complete shared run
+        id: complete
+        run: .github/scripts/qase-run.sh complete "$QASE_RUN_ID"
+
+      - name: Summarize shared run
+        if: always()
+        env:
+          COMPLETION_OUTCOME: ${{ steps.complete.outcome }}
+        run: |
+          {
+            echo "### Consolidated Qase run"
+            echo "- Run: [Open in Qase]($QASE_RUN_URL)"
+            echo "- Completion: $COMPLETION_OUTCOME"
+            echo "- Public access: use Share report in the completed Qase run"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   report:
     name: Build consolidated Allure report
@@ -304,7 +414,7 @@ jobs:
   quality-gate:
     name: Final quality gate
     if: always()
-    needs: [prepare, compile, domain-tests, report, publish-report]
+    needs: [prepare, compile, qase-run, domain-tests, qase-finalize, report, publish-report]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -313,6 +423,10 @@ jobs:
           PREPARE_RESULT: ${{ needs.prepare.result }}
           COMPILE_RESULT: ${{ needs.compile.result }}
           TEST_RESULT: ${{ needs.domain-tests.result }}
+          QASE_CREATE_RESULT: ${{ needs.qase-run.result }}
+          QASE_FINALIZE_RESULT: ${{ needs.qase-finalize.result }}
+          QASE_REQUESTED: ${{ needs.prepare.outputs.publish_qase }}
+          QASE_RUN_URL: ${{ needs.qase-run.outputs.run_url }}
           REPORT_RESULT: ${{ needs.report.result }}
           PUBLISH_RESULT: ${{ needs.publish-report.result }}
           PUBLISH_REQUESTED: ${{ needs.prepare.outputs.publish_report }}
@@ -322,13 +436,22 @@ jobs:
             echo "- Preparation: $PREPARE_RESULT"
             echo "- Compilation: $COMPILE_RESULT"
             echo "- Domain tests: $TEST_RESULT"
+            echo "- Qase run creation: $QASE_CREATE_RESULT"
+            echo "- Qase run completion: $QASE_FINALIZE_RESULT"
             echo "- Allure report: $REPORT_RESULT"
             echo "- Report publication: $PUBLISH_RESULT"
+            if [[ -n "$QASE_RUN_URL" ]]; then
+              echo "- Qase run: $QASE_RUN_URL"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
           [[ "$PREPARE_RESULT" == "success" ]]
           [[ "$COMPILE_RESULT" == "success" ]]
           [[ "$TEST_RESULT" == "success" ]]
+          if [[ "$QASE_REQUESTED" == "true" ]]; then
+            [[ "$QASE_CREATE_RESULT" == "success" ]]
+            [[ "$QASE_FINALIZE_RESULT" == "success" ]]
+          fi
           [[ "$REPORT_RESULT" == "success" ]]
           if [[ "$PUBLISH_REQUESTED" == "true" ]]; then
             [[ "$PUBLISH_RESULT" == "success" ]]
