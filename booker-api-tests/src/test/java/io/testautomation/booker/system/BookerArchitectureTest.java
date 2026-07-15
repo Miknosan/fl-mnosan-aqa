@@ -4,10 +4,7 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import io.qase.commons.annotation.QaseIgnore;
-import io.testautomation.booker.framework.metadata.BookerQuality;
-import io.testautomation.booker.framework.metadata.ReportGroup;
-import io.testautomation.core.classification.Regression;
-import io.testautomation.core.classification.Smoke;
+import io.testautomation.core.classification.SystemTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -15,8 +12,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
-@BookerQuality
-@ReportGroup("Architecture")
+@SystemTest
 @DisplayName("Booker architecture quality gates")
 class BookerArchitectureTest {
     private static final JavaClasses PRODUCTION_CLASSES = new ClassFileImporter()
@@ -28,8 +24,6 @@ class BookerArchitectureTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     @DisplayName("[Architecture] Verify that API clients remain independent from test frameworks")
     void shouldKeepProductionClientsIndependentFromTestFrameworks() {
         noClasses()
@@ -43,8 +37,6 @@ class BookerArchitectureTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     @DisplayName("[Architecture] Verify that test data factories remain independent from API clients and workflows")
     void shouldKeepDataFactoriesIndependentFromApiClientsAndWorkflows() {
         noClasses()
@@ -55,8 +47,6 @@ class BookerArchitectureTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     @DisplayName("[Architecture] Verify that authentication remains independent from booking")
     void shouldKeepAuthenticationIndependentFromBooking() {
         noClasses()
@@ -67,8 +57,6 @@ class BookerArchitectureTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     @DisplayName("[Architecture] Verify that executable tests remain in scenario or system packages")
     void shouldKeepExecutableTestsInExplicitScenarioOrSystemPackages() {
         classes()
@@ -79,8 +67,6 @@ class BookerArchitectureTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     @DisplayName("[Architecture] Verify that top-level packages remain free of dependency cycles")
     void shouldKeepTopLevelPackagesFreeOfCycles() {
         slices()

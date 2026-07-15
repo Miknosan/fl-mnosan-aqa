@@ -4,20 +4,14 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import io.qase.commons.annotation.QaseIgnore;
-import io.testautomation.core.classification.Regression;
-import io.testautomation.core.classification.Smoke;
-import io.testautomation.hygraph.framework.metadata.GraphQlPlatformFeature;
-import io.testautomation.hygraph.framework.metadata.Hygraph;
-import io.testautomation.hygraph.framework.metadata.ReportGroup;
+import io.testautomation.core.classification.SystemTest;
 import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
-@Hygraph
-@GraphQlPlatformFeature
-@ReportGroup("Architecture")
+@SystemTest
 class HygraphArchitectureTest {
     private static final JavaClasses PRODUCTION_CLASSES = new ClassFileImporter()
             .withImportOption(new ImportOption.DoNotIncludeTests())
@@ -28,8 +22,6 @@ class HygraphArchitectureTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldKeepGraphQlProtocolIndependentFromMovieCatalog() {
         noClasses()
                 .that().resideInAPackage("..graphql..")
@@ -39,8 +31,6 @@ class HygraphArchitectureTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldKeepProductionClientsIndependentFromTestFrameworks() {
         noClasses()
                 .that().resideInAPackage("..client..")
@@ -50,8 +40,6 @@ class HygraphArchitectureTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldKeepExecutableTestsInExplicitScenarioOrSystemPackages() {
         classes()
                 .that().haveSimpleNameEndingWith("Test")
@@ -61,8 +49,6 @@ class HygraphArchitectureTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldKeepTopLevelPackagesFreeOfCycles() {
         slices()
                 .matching("io.testautomation.hygraph.(*)..")

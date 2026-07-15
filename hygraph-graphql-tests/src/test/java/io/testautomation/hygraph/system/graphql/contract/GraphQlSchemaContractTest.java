@@ -10,17 +10,17 @@ import graphql.schema.idl.SchemaParser;
 import graphql.schema.idl.UnExecutableSchemaGenerator;
 import graphql.validation.ValidationError;
 import graphql.validation.Validator;
-import io.testautomation.core.classification.Regression;
-import io.testautomation.core.classification.Smoke;
 import io.qase.commons.annotation.QaseIgnore;
+import io.testautomation.core.classification.ExternalContract;
+import io.testautomation.hygraph.framework.lifecycle.HygraphExtension;
 import io.testautomation.hygraph.framework.metadata.GraphQlPlatformFeature;
-import io.testautomation.hygraph.framework.metadata.Hygraph;
 import io.testautomation.hygraph.framework.metadata.ReportGroup;
 import io.testautomation.hygraph.graphql.client.GraphQlClient;
 import io.testautomation.hygraph.graphql.model.GraphQlRequest;
 import io.testautomation.hygraph.graphql.model.GraphQlResponse;
 import io.testautomation.hygraph.graphql.model.GraphQlResult;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,9 +33,10 @@ import java.util.Map;
 import static io.testautomation.hygraph.framework.assertions.GraphQlAssertions.assertSuccessful;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Hygraph
+@ExternalContract
 @GraphQlPlatformFeature
 @ReportGroup("Schema contract")
+@ExtendWith(HygraphExtension.class)
 class GraphQlSchemaContractTest {
     private static final String INTROSPECTION_QUERY = IntrospectionQuery.INTROSPECTION_QUERY
             .replace("  isOneOf\n", "")
@@ -48,8 +49,6 @@ class GraphQlSchemaContractTest {
 
     @Test
     @QaseIgnore
-    @Smoke
-    @Regression
     void shouldValidateAllExecutableDocumentsAgainstPublishedSchema(GraphQlClient client) throws IOException {
         GraphQlResult<Map<String, Object>> introspection = client.execute(
                 new GraphQlRequest(INTROSPECTION_QUERY, Map.of(), "IntrospectionQuery"),

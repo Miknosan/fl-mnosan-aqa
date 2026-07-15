@@ -58,7 +58,8 @@ Key capabilities include:
 - screenshots, traces and browser diagnostics on UI failures;
 - configurable parallel execution with conservative defaults for public services;
 - Allure, Surefire and Qase TestOps reporting;
-- a manually controlled CI/CD quality gate with optional public Qase and GitHub Pages reports.
+- automatic pull-request system quality gates;
+- a manually controlled business quality gate with optional public Qase and GitHub Pages reports.
 
 ## Architecture
 
@@ -192,7 +193,7 @@ Every command requires an explicit environment. Available committed profiles are
 ### Run the complete repository
 
 ```bash
-./mvnw clean verify -Dtest.environment=dev
+./mvnw clean verify -Dtest.environment=dev -Dgroups=business
 ```
 
 The complete regression currently returns a failing build because the Web Tables sorting scenario detects the documented DemoQA defect. Use the all-domain smoke command below for a green framework verification; use the full command when the known product failure must remain part of the evidence.
@@ -201,14 +202,16 @@ The complete regression currently returns a failing build because the Web Tables
 
 ```bash
 ./mvnw -pl booker-api-tests,hygraph-graphql-tests -am clean verify \
-  -Dtest.environment=dev
+  -Dtest.environment=dev \
+  -Dgroups=business
 ```
 
 ### Run UI tests only
 
 ```bash
 ./mvnw -pl demoqa-ui-tests -am clean verify \
-  -Dtest.environment=dev
+  -Dtest.environment=dev \
+  -Dgroups=business
 ```
 
 ### Run one domain and test plan
@@ -217,17 +220,25 @@ The complete regression currently returns a failing build because the Web Tables
 # Booker smoke
 ./mvnw -pl booker-api-tests -am clean verify \
   -Dtest.environment=dev \
-  -Dgroups=smoke
+  -Dgroups="business & smoke"
 
 # Hygraph regression
 ./mvnw -pl hygraph-graphql-tests -am clean verify \
   -Dtest.environment=stage \
-  -Dgroups=regression
+  -Dgroups="business & regression"
 
 # DemoQA smoke
 ./mvnw -pl demoqa-ui-tests -am clean verify \
   -Dtest.environment=dev \
-  -Dgroups=smoke
+  -Dgroups="business & smoke"
+```
+
+The published Hygraph schema contract is intentionally separate from deterministic PR checks and business runs:
+
+```bash
+./mvnw -pl hygraph-graphql-tests -am clean test \
+  -Dtest.environment=dev \
+  -Dgroups=external-contract
 ```
 
 ### Run through the orchestrator
@@ -238,7 +249,7 @@ Install the orchestrator and shared contracts once:
 ./mvnw -pl qa-orchestrator -am install -DskipTests
 ```
 
-Then select domains, plans, environment, optional feature and parallelism:
+Then select domains, plans, environment, optional feature and parallelism. The orchestrator always combines the requested plan with the `business` classification, so system and external-contract tests cannot enter a manual product run.
 
 ```bash
 # Smoke for all domains
@@ -301,7 +312,7 @@ allure serve \
   demoqa-ui-tests/target/allure-results
 ```
 
-Allure results use the hierarchy `Domain -> Feature -> Report group` and include the selected environment. API requests and responses, UI screenshots, traces and browser errors are attached where applicable.
+Manual Allure results contain only business scenarios, use the hierarchy `Domain -> Feature -> Report group`, and include the selected environment. API requests and responses, UI screenshots, traces and browser errors are attached where applicable. Pull-request system gates do not publish Allure or Qase evidence.
 
 ### Qase TestOps
 
@@ -311,7 +322,8 @@ Qase reporting is disabled for normal local execution. To publish a direct modul
 QASE_MODE=testops \
 QASE_TESTOPS_API_TOKEN="<your-token>" \
 ./mvnw -pl booker-api-tests -am clean test \
-  -Dtest.environment=dev
+  -Dtest.environment=dev \
+  -Dgroups=business
 ```
 
 Project code and non-secret defaults are stored in [`qase.config.json`](qase.config.json). The token is never committed.
@@ -329,7 +341,7 @@ The strategy prioritizes representative risk and architectural clarity over maxi
 5. **Make data deterministic and isolated.** Datafaker generates unique values, domain factories build valid relationships, mutable Booker records are cleaned up, and every UI test receives a fresh browser context.
 6. **Prefer observable synchronization over retries.** Playwright state waits replace sleeps; blind retries are avoided so real defects and flaky behavior remain visible.
 7. **Treat reporting as part of execution.** Qase traceability, Allure metadata and failure artifacts are verified by the pipeline rather than handled as optional afterthoughts.
-8. **Protect the architecture continuously.** ArchUnit, metadata gates, source-quality tests and Maven Enforcer stop boundary violations, undocumented product tests and dependency drift during the build.
+8. **Protect the architecture continuously.** ArchUnit, metadata gates, source-quality tests and Maven Enforcer stop boundary violations, undocumented product tests and dependency drift automatically on every pull request.
 
 ## Challenges and solutions
 
@@ -363,7 +375,9 @@ DemoQA currently accepts Web Tables header clicks without sorting the records. T
 
 ## CI/CD
 
-The [`Quality gate`](.github/workflows/quality-gate.yml) workflow is intentionally manual for this demonstration repository. The operator selects:
+The [`Pull request quality gates`](.github/workflows/pull-request-quality-gate.yml) workflow automatically runs shared unit tests and local `system` checks for Booker, Hygraph and DemoQA. It uses no environment secrets, does not call the public assignment services, and publishes neither Qase nor Allure results.
+
+The [`Quality gate`](.github/workflows/quality-gate.yml) workflow remains intentionally manual for business verification. The operator selects:
 
 - environment: `dev`, `stage`, or another committed profile;
 - domains: `all` or a comma-separated subset of `booker`, `hygraph`, `demoqa`;
@@ -377,7 +391,7 @@ The pipeline performs:
 Validate inputs
 -> Verify scripts and compile the framework
 -> Create the optional shared Qase run
--> Execute selected domains as isolated matrix jobs
+-> Execute selected business domains as isolated matrix jobs
 -> Retain Surefire, Allure and UI evidence
 -> Complete and publicly share the Qase run
 -> Build one consolidated Allure report
@@ -392,7 +406,7 @@ CI covers compilation, controlled test execution and quality evaluation. CD opti
 1. **Cross-browser CI coverage.** Expand only the DemoQA matrix across Chromium, Firefox and WebKit, install the selected Playwright engine per job, label Allure results by browser, and publish browser-specific Qase runs using Qase configurations.
 2. **Performance testing with Gatling.** Introduce an independent performance module with baseline, load and stress profiles, explicit response-time and error-rate thresholds, and versioned reports. The workloads would run only against an approved controlled environment or service virtualization, never against the public assignment services.
 3. **Qase-driven pipeline execution.** Allow an approved Qase Test Plan or run to securely dispatch GitHub Actions with domain, environment and plan inputs, then write the GitHub run and public report URLs back to Qase.
-4. **Automated pipeline triggers.** Keep the current manual demonstration workflow and add focused pull-request smoke, scheduled regression and post-deployment triggers when the repository is connected to a real delivery lifecycle.
+4. **Additional automated triggers.** Keep the deterministic PR system gate and add label-controlled product smoke, scheduled regression and post-deployment triggers when the repository is connected to a real delivery lifecycle.
 5. **Service virtualization.** Add contract-compatible mocks for documented external-service outages and deterministic error scenarios that public systems cannot reliably provide.
 6. **Broader behavior coverage.** Add Booker partial update and date-filter cases, expand Hygraph relationship and schema-evolution coverage, and add DemoQA boundary, accessibility and responsive-layout checks.
 7. **Historical quality analytics.** Preserve Allure history across GitHub Pages deployments and publish trend metrics for pass rate, duration and recurring failure categories.

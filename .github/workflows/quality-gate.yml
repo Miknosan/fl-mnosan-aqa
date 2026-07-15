@@ -236,7 +236,7 @@ jobs:
           ./mvnw --batch-mode --no-transfer-progress \
             -pl "${{ matrix.module }}" -am clean verify \
             -Dtest.environment="$TEST_ENVIRONMENT" \
-            -Dgroups="$TEST_PLAN"
+            -Dgroups="business & ($TEST_PLAN)"
 
       - name: Verify Qase delivery
         if: always() && needs.prepare.outputs.publish_qase == 'true'

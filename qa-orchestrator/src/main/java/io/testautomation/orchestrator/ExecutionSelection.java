@@ -1,6 +1,7 @@
 package io.testautomation.orchestrator;
 
 import io.testautomation.core.config.ExecutionEnvironment;
+import io.testautomation.core.classification.TestTags;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -41,7 +42,8 @@ record ExecutionSelection(
                 .map(TestPlan::tag)
                 .sorted()
                 .collect(Collectors.joining(" | "));
-        return feature.isBlank() ? plansExpression : "(" + plansExpression + ") & " + feature;
+        String businessPlanExpression = TestTags.BUSINESS + " & (" + plansExpression + ")";
+        return feature.isBlank() ? businessPlanExpression : businessPlanExpression + " & " + feature;
     }
 
     private static Set<Domain> parseDomains(String value) {
