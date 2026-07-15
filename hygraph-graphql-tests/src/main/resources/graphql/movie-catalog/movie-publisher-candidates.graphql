@@ -1,0 +1,10 @@
+query MoviePublisherCandidate {
+  movies(first: 20, orderBy: title_ASC) {
+    id
+    title
+    publishedBy {
+      id
+      name
+    }
+  }
+}

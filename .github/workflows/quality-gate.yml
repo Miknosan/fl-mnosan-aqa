@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,3 +28,45 @@ jobs:
 
       - name: Compile multi-module framework
         run: ./mvnw --batch-mode --no-transfer-progress clean test-compile
+
+  api-tests:
+    needs: compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - booker-api-tests
+          - hygraph-graphql-tests
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Execute API quality gate
+        shell: bash
+        run: |
+          plan=smoke
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            plan=regression
+          fi
+          ./mvnw --batch-mode --no-transfer-progress \
+            -pl "${{ matrix.module }}" -am clean verify -Dgroups="$plan"
+
+      - name: Retain test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.module }}-test-evidence
+          path: |
+            ${{ matrix.module }}/target/surefire-reports
+            ${{ matrix.module }}/target/allure-results
+          if-no-files-found: warn
+          retention-days: 14

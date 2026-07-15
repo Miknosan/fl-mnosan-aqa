@@ -1,0 +1,14 @@
+fragment PublisherFields on User {
+  id
+  name
+}
+
+query MovieWithPublisher($id: ID!) {
+  movie(where: { id: $id }) {
+    id
+    title
+    publishedBy {
+      ...PublisherFields
+    }
+  }
+}

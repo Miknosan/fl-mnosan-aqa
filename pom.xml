@@ -34,6 +34,8 @@
         <aspectj.version>1.9.25</aspectj.version>
         <lombok.version>1.18.46</lombok.version>
         <slf4j.version>2.0.18</slf4j.version>
+        <graphql-java.version>25.0</graphql-java.version>
+        <archunit.version>1.4.2</archunit.version>
 
         <maven.compiler.plugin.version>3.14.1</maven.compiler.plugin.version>
         <maven.surefire.plugin.version>3.5.4</maven.surefire.plugin.version>

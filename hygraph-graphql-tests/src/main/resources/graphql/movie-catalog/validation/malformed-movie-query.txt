@@ -1,0 +1,5 @@
+query MalformedMovieQuery {
+  movies(first: 1) {
+    id
+    title
+  }

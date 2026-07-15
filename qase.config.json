@@ -5,7 +5,7 @@
   "testops": {
     "project": "DA",
     "run": {
-      "title": "Booker API automated tests",
+      "title": "QA Automation tests",
       "complete": true
     },
     "batch": {

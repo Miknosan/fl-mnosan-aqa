@@ -1,0 +1,7 @@
+query MoviesPage($first: Int!, $skip: Int!) {
+  movies(first: $first, skip: $skip, orderBy: title_ASC) {
+    id
+    title
+    slug
+  }
+}
