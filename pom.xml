@@ -109,6 +109,7 @@
                 <configuration>
                     <useModulePath>false</useModulePath>
                     <failIfNoTests>false</failIfNoTests>
+                    <workingDirectory>${maven.multiModuleProjectDirectory}</workingDirectory>
                     <systemPropertyVariables>
                         <allure.results.directory>${project.build.directory}/allure-results</allure.results.directory>
                     </systemPropertyVariables>
