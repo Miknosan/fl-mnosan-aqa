@@ -180,7 +180,7 @@ Replace `booker-api-tests` with `hygraph-graphql-tests` or `demoqa-ui-tests` to 
 
 The non-secret defaults, including project code `DA`, are stored in the root `qase.config.json`, where the reporter can discover them for direct and orchestrated Maven runs. Use `QASE_TESTOPS_RUN_TITLE` to override the run title or `QASE_TESTOPS_RUN_ID` to publish into an existing Qase run. Never store the API token in the repository.
 
-CI creates one Qase run per quality-gate execution and shares its ID across all selected domain jobs. The reporters append results without completing the run; a dedicated finalizer closes it after the full matrix, including failure paths. Public access is enabled manually from the completed run through `Share report`.
+CI creates one Qase run per quality-gate execution and shares its ID across all selected domain jobs. The reporters append results without completing the run; a dedicated finalizer closes it after the full matrix, including failure paths, enables its public report, and publishes the public URL in the GitHub Actions summary.
 
 ## Full build
 

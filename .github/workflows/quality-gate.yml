@@ -276,7 +276,7 @@ jobs:
           retention-days: 14
 
   qase-finalize:
-    name: Complete consolidated Qase run
+    name: Complete and share consolidated Qase run
     if: >-
       always()
       && needs.prepare.result == 'success'
@@ -289,6 +289,8 @@ jobs:
     environment:
       name: ${{ needs.prepare.outputs.environment }}
       deployment: false
+    outputs:
+      public_run_url: ${{ steps.share.outputs.public_run_url }}
     env:
       QASE_TESTOPS_API_TOKEN: ${{ secrets.QASE_TESTOPS_API_TOKEN }}
       QASE_RUN_ID: ${{ needs.qase-run.outputs.run_id }}
@@ -301,16 +303,27 @@ jobs:
         id: complete
         run: .github/scripts/qase-run.sh complete "$QASE_RUN_ID"
 
+      - name: Enable public report
+        id: share
+        run: |
+          public_run_url=$(.github/scripts/qase-run.sh share "$QASE_RUN_ID")
+          echo "public_run_url=$public_run_url" >> "$GITHUB_OUTPUT"
+
       - name: Summarize shared run
         if: always()
         env:
           COMPLETION_OUTCOME: ${{ steps.complete.outcome }}
+          PUBLICATION_OUTCOME: ${{ steps.share.outcome }}
+          PUBLIC_RUN_URL: ${{ steps.share.outputs.public_run_url }}
         run: |
           {
             echo "### Consolidated Qase run"
-            echo "- Run: [Open in Qase]($QASE_RUN_URL)"
+            echo "- Authenticated run: [Open in Qase]($QASE_RUN_URL)"
             echo "- Completion: $COMPLETION_OUTCOME"
-            echo "- Public access: use Share report in the completed Qase run"
+            echo "- Public report: $PUBLICATION_OUTCOME"
+            if [[ -n "$PUBLIC_RUN_URL" ]]; then
+              echo "- Public URL: [$PUBLIC_RUN_URL]($PUBLIC_RUN_URL)"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   report:
@@ -427,6 +440,7 @@ jobs:
           QASE_FINALIZE_RESULT: ${{ needs.qase-finalize.result }}
           QASE_REQUESTED: ${{ needs.prepare.outputs.publish_qase }}
           QASE_RUN_URL: ${{ needs.qase-run.outputs.run_url }}
+          QASE_PUBLIC_RUN_URL: ${{ needs.qase-finalize.outputs.public_run_url }}
           REPORT_RESULT: ${{ needs.report.result }}
           PUBLISH_RESULT: ${{ needs.publish-report.result }}
           PUBLISH_REQUESTED: ${{ needs.prepare.outputs.publish_report }}
@@ -441,7 +455,10 @@ jobs:
             echo "- Allure report: $REPORT_RESULT"
             echo "- Report publication: $PUBLISH_RESULT"
             if [[ -n "$QASE_RUN_URL" ]]; then
-              echo "- Qase run: $QASE_RUN_URL"
+              echo "- Authenticated Qase run: $QASE_RUN_URL"
+            fi
+            if [[ -n "$QASE_PUBLIC_RUN_URL" ]]; then
+              echo "- Public Qase report: $QASE_PUBLIC_RUN_URL"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

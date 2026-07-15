@@ -52,11 +52,24 @@ QASE_FAKE_RESPONSE='{"status":true,"result":null}' "$client" complete 321
 grep -Fx 'POST' "$capture_file" >/dev/null
 grep -Fx 'https://qase.example.test/v1/run/DA/321/complete' "$capture_file" >/dev/null
 
+public_url=$(QASE_FAKE_RESPONSE='{"status":true,"result":{"url":"https://app.qase.io/public/report/public-token"}}' \
+  "$client" share 321)
+[[ "$public_url" == "https://app.qase.io/public/report/public-token" ]]
+grep -Fx 'PATCH' "$capture_file" >/dev/null
+grep -Fx 'https://qase.example.test/v1/run/DA/321/public' "$capture_file" >/dev/null
+
+payload=$(awk 'previous == "--data" {print; exit} {previous=$0}' "$capture_file")
+jq -e '.status == true' <<< "$payload" >/dev/null
+
 assert_failure env -u QASE_TESTOPS_API_TOKEN "$client" create "Run" dev
 assert_failure "$client" create "" dev
 assert_failure "$client" create "Run" 'invalid/environment'
 assert_failure "$client" complete 0
+assert_failure "$client" share 0
 assert_failure env QASE_FAKE_EXIT_CODE=22 "$client" create "Run" dev
 assert_failure env QASE_FAKE_EXIT_CODE=22 "$client" complete 321
+assert_failure env QASE_FAKE_EXIT_CODE=22 "$client" share 321
 assert_failure env QASE_FAKE_RESPONSE='{"status":false,"result":null}' "$client" create "Run" dev
 assert_failure env QASE_FAKE_RESPONSE='{"status":false,"result":null}' "$client" complete 321
+assert_failure env QASE_FAKE_RESPONSE='{"status":false,"result":null}' "$client" share 321
+assert_failure env QASE_FAKE_RESPONSE='{"status":true,"result":{"url":"invalid"}}' "$client" share 321

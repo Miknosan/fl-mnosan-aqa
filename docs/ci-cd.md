@@ -18,7 +18,7 @@ Runs targeting the same environment are queued instead of cancelled or executed 
 2. `Compile framework` compiles production and test sources before external test infrastructure is used and verifies the CI script contracts.
 3. `Create consolidated Qase run` creates one environment-aware run when Qase publication is requested and exposes its ID to every selected domain.
 4. Domain jobs run in parallel with `fail-fast` disabled, publish into the shared Qase run, and reference the selected GitHub Environment without creating deployment records.
-5. `Complete consolidated Qase run` executes with `always()` after the domain matrix so failed tests cannot leave the shared run open.
+5. `Complete and share consolidated Qase run` executes with `always()` after the domain matrix, closes the shared run, and enables its public report.
 6. Every domain retains Surefire, raw Allure, screenshot, trace, and Qase fallback evidence even when its tests fail.
 7. `Build consolidated Allure report` downloads all available domain evidence and produces one HTML report with execution metadata.
 8. `Publish Allure report` optionally delivers the HTML report to GitHub Pages.
@@ -58,7 +58,7 @@ Manual dispatch publication flags enable the corresponding integration. A reques
 
 Create Qase environments with slugs matching the execution profiles, initially `dev` and `stage`. When publication is requested, the pipeline creates one run named `Quality gate | <environment> | <plan> | GitHub #<number>` and passes its ID to all selected domain jobs through `QASE_TESTOPS_RUN_ID`. Reporters use `QASE_TESTOPS_RUN_COMPLETE=false`; only the finalizer closes the run after every domain has finished. This preserves parallel domain execution while producing one cross-domain quality-gate record.
 
-The lifecycle client reads project code `DA` from the root `qase.config.json`, uses the environment-scoped token, and calls the documented Qase create and complete endpoints without logging credentials. Public access remains an explicit operator decision: open the completed run, select `Share report`, enable public access, and copy the generated link.
+The lifecycle client reads project code `DA` from the root `qase.config.json`, uses the environment-scoped token, and calls the Qase create, complete, and publicity endpoints without logging credentials. The finalizer validates the returned public HTTPS URL and publishes it in both the Qase job summary and the final quality-gate summary. A requested Qase publication fails when public access cannot be enabled.
 
 The `always()` finalizer covers test and reporting failures. If an operator cancels the workflow after Qase run creation, GitHub can terminate the finalizer as well; in that exceptional case, complete or abort the run from Qase before starting the replacement execution.
 
