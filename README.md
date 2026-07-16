@@ -6,15 +6,15 @@ Java 17 multi-module test automation framework covering the Booker REST API, Hyg
 
 | Area | Technology | Responsibility |
 |---|---|---|
-| Runtime and build | Java 17, Maven Wrapper, Maven multi-module build | Reproducible local and CI execution |
-| Test engine | JUnit 5, JUnit Platform, Maven Surefire | Test lifecycle, parameterization, tagging and execution |
+| Runtime and build | Java 17, Maven Wrapper, Maven multi-module build | Reproducible builds and independently executable domain modules |
+| Test engine | JUnit 5, JUnit Platform, Maven Surefire | Test lifecycle, parameterized scenarios, tagging and execution selection |
 | Assertions | AssertJ | Readable domain and contract assertions |
 | API transport | REST Assured | Builds and executes Booker REST and Hygraph GraphQL HTTP requests and exposes their responses for verification |
-| JSON serialization | Jackson | Converts typed Java request models into JSON and maps API JSON responses back into typed Java response models |
+| JSON processing | Jackson Databind and JSR-310 | Serializes typed API requests, deserializes responses and handles Java date/time values consistently through REST Assured |
 | GraphQL contracts | GraphQL Java | Parses GraphQL documents and validates queries and fragments against the introspected Hygraph schema |
 | UI automation | Playwright for Java | Browser lifecycle, Page Objects, components, waits, screenshots and traces |
-| Test data | Datafaker (`Faker`), immutable models, domain data factories | Unique and intention-revealing payloads |
-| Model implementation | Lombok | Generates immutable models and builders while keeping request and response contracts concise |
+| Test data | Datafaker (`Faker`), immutable models, domain data factories | Unique, valid and intention-revealing Booker and DemoQA data |
+| Model implementation | Lombok | Generates immutable Booker API models and builders while keeping contracts concise |
 | Architecture control | ArchUnit, Maven Enforcer, custom metadata gates | Module boundaries, naming, dependency convergence and test documentation |
 | Reporting | Allure, Surefire | Human-readable reports and raw execution evidence |
 | Test management | Qase JUnit 5 reporter | Test-case traceability and consolidated public test runs |
@@ -26,12 +26,12 @@ Dependency and plugin versions are centralized in the parent [`pom.xml`](pom.xml
 
 - [Solution overview](#solution-overview)
 - [Architecture](#architecture)
-- [Test scope](#test-scope)
 - [Prerequisites](#prerequisites)
 - [How to run](#how-to-run)
 - [Environment configuration](#environment-configuration)
 - [Reports and test management](#reports-and-test-management)
 - [Test strategy](#test-strategy)
+- [Known DemoQA regression signal](#known-demoqa-regression-signal)
 - [Challenges and solutions](#challenges-and-solutions)
 - [CI/CD](#cicd)
 - [What I would add with more time](#what-i-would-add-with-more-time)
@@ -46,7 +46,7 @@ The framework treats each tested system as an independent domain rather than com
 | Hygraph | GraphQL API | REST Assured, GraphQL Java | Movie catalog queries, relationships and contract validation | 6 |
 | DemoQA | Browser UI | Playwright for Java | Student Registration Form and Web Tables | 9 |
 
-The 25 product scenarios are complemented by system-level architecture, metadata, configuration, GraphQL contract, and source-quality gates. Product scenarios are synchronized with Qase, while system gates remain visible in Allure but are intentionally excluded from Qase because they validate the framework rather than user behavior.
+The 25 product scenarios are complemented by system-level architecture, metadata, configuration, GraphQL component, and source-quality gates, plus an independently executable live-schema contract. Product scenarios are synchronized with Qase and published to Allure, while deterministic system gates run separately on pull requests and stay out of business reports.
 
 Key capabilities include:
 
@@ -83,7 +83,7 @@ qa-automation-parent/
 - `demoqa-ui-tests` owns Playwright lifecycle, pages, components, models, data factories, UI assertions and failure evidence.
 - `qa-orchestrator` converts validated domain, plan, feature, environment and parallelism selections into Maven execution. It contains no domain clients, test data or assertions.
 
-Domain modules depend only on `qa-core`; they never depend on one another. A new service can therefore be introduced as a new Maven module without changing the internal implementation of Booker, Hygraph or DemoQA.
+Domain modules depend only on `qa-core`; they never depend on one another. Adding another tested system is therefore a focused extension: create its Maven domain module, reuse the shared contracts, add its environment profile values, and register its execution mapping in the orchestrator and CI matrix. Existing domain implementations remain untouched, so the framework can grow without a broad rewrite.
 
 ### Package ownership inside a domain
 
@@ -99,69 +99,6 @@ src/test/java/io/testautomation/<domain>/
 ```
 
 This separation makes the location and responsibility of product scenarios explicit while preventing framework verification from being confused with business test coverage.
-
-## Test scope
-
-### Booker REST API
-
-The Booker scope covers the complete business lifecycle and the authorization boundary around destructive operations:
-
-- successful and rejected authentication;
-- booking creation with a complete valid payload;
-- data-driven validation of all six mandatory fields;
-- retrieval by an existing ID and the not-found contract;
-- full authorized update and rejected unauthorized update;
-- booking search by guest name;
-- authorized deletion and cleanup verification.
-
-These cases were selected because authentication is the prerequisite for protected operations, CRUD represents the service's primary business flow, and negative authorization, required-field and not-found scenarios protect the highest-risk API boundaries. Search adds coverage of collection filtering rather than testing only entity endpoints.
-
-The suite generates unique booking data and tracks created IDs through `BookerExtension`, which removes test-owned bookings after each scenario. It runs sequentially by default to avoid overloading the public Restful Booker service.
-
-### Hygraph GraphQL
-
-The Hygraph scope uses the public Video Streaming schema and covers GraphQL behavior at both data and document-contract levels:
-
-- ordered movie pagination using `first` and `skip` variables;
-- single movie retrieval by a published ID;
-- GraphQL variables rather than query-string interpolation;
-- fragments and the nested `publishedBy` relationship;
-- non-existent ID behavior;
-- malformed query syntax errors;
-- validation errors for a non-existent field.
-
-The cases intentionally represent the main ways a GraphQL integration can fail: incorrect variables, unexpected nullability, syntax errors, schema validation errors and broken nested relationships. Runtime schema introspection validates executable documents against the published schema, while queries and fragments remain external resources instead of Java string literals.
-
-Run-scoped discovery resolves suitable public movie data once without global mutable state. Execution is sequential by default to respect the public endpoint.
-
-### DemoQA UI
-
-The DemoQA scope implements both UI options described by the assignment.
-
-Student Registration Form:
-
-- successful submission using all supported controls;
-- file upload, date picker and React dropdown interaction;
-- data-driven required-field validation;
-- invalid email validation;
-- invalid mobile-number validation;
-- success modal content verification.
-
-Web Tables:
-
-- add a record;
-- update an existing record;
-- delete a record;
-- search and filter records;
-- validate ascending and descending sorting for every supported column.
-
-The successful form submission and record creation form the smoke plan because they prove that the two main UI features are usable end to end. The regression plan adds validation boundaries and the complete Web Tables behavior set. Tests operate through feature-level Page Objects and reusable components, receive a fresh browser context and generated data per execution, and never access the raw Playwright `Page` from a product scenario.
-
-Playwright auto-waiting is complemented by explicit waits for meaningful UI states such as visible forms, opened or closed modals, and present or absent table rows. Arbitrary sleeps and blind test retries are not used.
-
-#### Known DemoQA regression signal
-
-The Web Tables sorting scenario currently exposes a reproducible DemoQA product defect: header clicks succeed, but the public page leaves the record order unchanged. The parameterized scenario therefore reports six deterministic failures, one for each sortable column. The test remains enabled so the regression report communicates the observed product behavior instead of producing an artificially green result. Failure screenshots and Playwright traces are retained as evidence.
 
 ## Prerequisites
 
@@ -332,46 +269,38 @@ When enabled in CI, one Qase run is created before the selected domain matrix st
 
 ## Test strategy
 
-The strategy prioritizes representative risk and architectural clarity over maximizing the number of similar tests.
+The strategy follows the assignment's expectation to explain the selected approach, priorities and coverage rationale. It favors representative business risk and maintainable evidence over maximizing the number of similar checks.
 
-1. **Cover critical user and integration flows first.** Authentication and CRUD protect the Booker business lifecycle; GraphQL variables, relationships and schema errors protect the Hygraph contract; complete form submission and Web Tables operations protect DemoQA user behavior.
+1. **Select cases by domain risk.** Booker covers authentication, CRUD, search, authorization, mandatory fields and not-found behavior because they form the service's primary lifecycle and highest-risk boundaries. Hygraph covers variables, pagination, entity lookup, nested relationships, fragments, syntax errors and schema validation because these are distinct GraphQL integration failure modes. DemoQA covers both assignment features through successful end-to-end flows, validation boundaries and complete Web Tables operations, including data-driven sorting across every supported column.
 2. **Balance positive and negative coverage.** Every domain contains successful paths and meaningful validation or error contracts rather than only happy-path checks.
-3. **Separate smoke from regression by purpose.** Smoke tests prove that each domain's primary capability is available. Regression adds authorization, validation, negative contracts and full feature behavior.
+3. **Separate smoke from regression by purpose.** Smoke proves the primary capability of each domain through authentication and the core booking lifecycle, movie-catalog listing and retrieval, student registration, and Web Tables record creation. Regression adds validation boundaries, negative contracts, search, relationship checks and complete feature behavior.
 4. **Keep product scenarios readable.** Tests express arrange, action and assertion at business level. Protocol mechanics, selectors, lifecycle and reusable domain assertions stay behind focused collaborators.
 5. **Make data deterministic and isolated.** Datafaker generates unique values, domain factories build valid relationships, mutable Booker records are cleaned up, and every UI test receives a fresh browser context.
 6. **Prefer observable synchronization over retries.** Playwright state waits replace sleeps; blind retries are avoided so real defects and flaky behavior remain visible.
 7. **Treat reporting as part of execution.** Qase traceability, Allure metadata and failure artifacts are verified by the pipeline rather than handled as optional afterthoughts.
 8. **Protect the architecture continuously.** ArchUnit, metadata gates, source-quality tests and Maven Enforcer stop boundary violations, undocumented product tests and dependency drift automatically on every pull request.
 
+## Known DemoQA regression signal
+
+The Web Tables sorting scenario currently exposes a reproducible DemoQA product defect: header clicks succeed, but the public page leaves the record order unchanged. The parameterized scenario therefore reports six deterministic failures, one for each sortable column. The test remains enabled so the regression report communicates the observed product behavior instead of producing an artificially green result. Failure screenshots and Playwright traces are retained as evidence.
+
 ## Challenges and solutions
 
-### Independent technologies in one repository
+### Independent domain architecture and orchestration
 
-Booker REST, Hygraph GraphQL and DemoQA UI require different clients, models, lifecycle and runtime resources. Putting them into one package tree would create coupling and make selective execution unclear. Each system is therefore an independent Maven domain with its own feature packages and configuration. `qa-core` contains only stable technology-neutral contracts.
+Booker REST, Hygraph GraphQL and DemoQA UI require different clients, models, lifecycle and runtime resources. Each system is therefore an independent Maven domain, while `qa-core` contains only stable cross-domain contracts. `qa-orchestrator` provides one validated entry point for selecting domains, plans, features, environments and parallelism without importing domain logic. GitHub Actions follows the same model through isolated matrix jobs, preserving clear ownership and selective execution while consolidating evidence afterward.
 
-### Independent domain control and orchestration
+### Building reliable GraphQL coverage with limited prior exposure
 
-A monolithic test command makes it difficult to select scope, assign failure ownership or tune resources per technology. `qa-orchestrator` provides one validated execution entry point while preserving domain independence. It selects modules, plans, features, environments and parallelism, then delegates execution to Maven without importing domain logic. GitHub Actions applies the same model through separate matrix jobs, so Booker, Hygraph and DemoQA can be run, diagnosed and extended independently while their evidence is consolidated afterward.
+My previous hands-on automation experience was broader in REST than in GraphQL, so I treated the Hygraph implementation as a contract-design challenge rather than reproducing REST patterns around a GraphQL endpoint. I separated query documents and fragments from Java code, used typed variables and response models, covered transport-success responses that contain GraphQL errors, and added GraphQL Java validation against the introspected schema. Component-level system tests protect document loading, models and client behavior, while the live-schema contract remains an explicit external check so public schema drift cannot make pull-request validation non-deterministic.
 
-### Environment growth without duplicated code
+### Reliable execution against dynamic public services
 
-Environment URLs and credentials must not be embedded in tests. Central profiles define environment identity and non-secret endpoints, while environment variables and JVM properties provide controlled overrides. Adding another environment requires one profile and CI environment configuration rather than changes across clients and scenarios.
-
-### Stable execution against public services
-
-The assignment targets can reset data, become temporarily unavailable or reject excessive traffic. Domain suites therefore execute sequentially by default, generate unique data, clean mutable Booker state, reuse read-only Hygraph discovery data within a run, and block disruptive third-party DemoQA content. Parallelism remains available but explicit and bounded.
-
-### Reliable UI synchronization and diagnostics
-
-DemoQA uses dynamic React controls, modals and table updates. Page Objects and components wait for business-relevant states instead of using fixed sleeps. A JUnit extension owns the browser lifecycle and automatically records screenshots, Playwright traces and browser errors when a product scenario fails.
+The assignment targets can reset data, become temporarily unavailable or reject excessive traffic. The suites therefore generate unique data, clean mutable Booker state, reuse read-only Hygraph discovery data within a run, and keep parallelism explicit and bounded. For DemoQA, disruptive third-party content is blocked and Page Objects wait for business-relevant React, modal and table states instead of using fixed sleeps. A JUnit extension owns the browser lifecycle and records screenshots, Playwright traces and browser errors when a scenario fails.
 
 ### Consolidated reporting from parallel jobs
 
 Parallel domain jobs naturally produce separate result directories and can prematurely close a shared test-management run. CI retains evidence per domain, merges raw Allure results into one report, and controls Qase through an explicit create, append, finalize and share lifecycle. `fail-fast` is disabled so one failing domain does not erase evidence from the others, while the final quality gate still remains red.
-
-### Transparent handling of a real product defect
-
-DemoQA currently accepts Web Tables header clicks without sorting the records. The affected scenario was not disabled, weakened or converted into a soft assertion. The deterministic failures and their artifacts remain in regression reporting, demonstrating how the framework communicates a product issue rather than hiding it.
 
 ## CI/CD
 
@@ -406,7 +335,5 @@ CI covers compilation, controlled test execution and quality evaluation. CD opti
 1. **Cross-browser CI coverage.** Expand only the DemoQA matrix across Chromium, Firefox and WebKit, install the selected Playwright engine per job, label Allure results by browser, and publish browser-specific Qase runs using Qase configurations.
 2. **Performance testing with Gatling.** Introduce an independent performance module with baseline, load and stress profiles, explicit response-time and error-rate thresholds, and versioned reports. The workloads would run only against an approved controlled environment or service virtualization, never against the public assignment services.
 3. **Qase-driven pipeline execution.** Allow an approved Qase Test Plan or run to securely dispatch GitHub Actions with domain, environment and plan inputs, then write the GitHub run and public report URLs back to Qase.
-4. **Additional automated triggers.** Keep the deterministic PR system gate and add label-controlled product smoke, scheduled regression and post-deployment triggers when the repository is connected to a real delivery lifecycle.
-5. **Service virtualization.** Add contract-compatible mocks for documented external-service outages and deterministic error scenarios that public systems cannot reliably provide.
-6. **Broader behavior coverage.** Add Booker partial update and date-filter cases, expand Hygraph relationship and schema-evolution coverage, and add DemoQA boundary, accessibility and responsive-layout checks.
-7. **Historical quality analytics.** Preserve Allure history across GitHub Pages deployments and publish trend metrics for pass rate, duration and recurring failure categories.
+4. **Service virtualization.** Add contract-compatible mocks for documented external-service outages and deterministic error scenarios that public systems cannot reliably provide.
+5. **Broader behavior coverage.** Add Booker partial update and date-filter cases, expand Hygraph relationship and schema-evolution coverage, and add DemoQA boundary, accessibility and responsive-layout checks.
