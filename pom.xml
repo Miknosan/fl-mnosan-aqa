@@ -25,7 +25,7 @@
         <junit.version>5.14.2</junit.version>
         <junit-platform.version>1.14.2</junit-platform.version>
         <rest-assured.version>6.0.0</rest-assured.version>
-        <playwright.version>1.60.0</playwright.version>
+        <playwright.version>1.61.0</playwright.version>
         <assertj.version>3.27.6</assertj.version>
         <datafaker.version>2.7.0</datafaker.version>
         <jackson.version>2.22.0</jackson.version>
