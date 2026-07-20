@@ -29,7 +29,7 @@
         <assertj.version>3.27.6</assertj.version>
         <datafaker.version>2.7.0</datafaker.version>
         <jackson.version>2.22.0</jackson.version>
-        <allure.version>2.35.2</allure.version>
+        <allure.version>2.35.3</allure.version>
         <qase.version>4.1.57</qase.version>
         <aspectj.version>1.9.25</aspectj.version>
         <lombok.version>1.18.46</lombok.version>
