@@ -54,7 +54,7 @@ jobs:
       publish_report: ${{ steps.selection.outputs.publish_report }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Resolve and validate execution
         id: selection
@@ -98,7 +98,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Java
         uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
@@ -130,7 +130,7 @@ jobs:
       QASE_TESTOPS_API_TOKEN: ${{ needs.prepare.outputs.publish_qase == 'true' && secrets.QASE_TESTOPS_API_TOKEN || '' }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Create shared run
         id: create
@@ -190,7 +190,7 @@ jobs:
       DEMOQA_BASE_URL: ${{ matrix.domain == 'demoqa' && vars.DEMOQA_BASE_URL || '' }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Java
         uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
@@ -297,7 +297,7 @@ jobs:
       QASE_RUN_URL: ${{ needs.qase-run.outputs.run_url }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Complete shared run
         id: complete
